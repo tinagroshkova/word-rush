@@ -1,3 +1,5 @@
+import type { LanguageCode } from './languages'
+
 export type GamePhase = 'lobby' | 'playing' | 'reveal' | 'finished'
 
 export type ValidationReason =
@@ -41,6 +43,7 @@ export interface RoomState {
   code: string
   phase: GamePhase
   hostId: string
+  language: LanguageCode
   players: Player[]
   round: RoundState | null
   roundNumber: number

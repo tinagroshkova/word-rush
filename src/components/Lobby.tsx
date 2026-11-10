@@ -1,4 +1,6 @@
 import { ROUND_DURATION_MS } from '../../shared/game'
+import { translate, type MessageKey, type MessageVars } from '../../shared/i18n'
+import type { LanguageCode } from '../../shared/languages'
 import type { RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import { PlayerList } from './PlayerList'
@@ -7,6 +9,7 @@ import styles from './Lobby.module.scss'
 
 interface LobbyProps {
   room: RoomState
+  language: LanguageCode
   playerId: string
   isHost: boolean
   busy: boolean
@@ -19,6 +22,7 @@ const ROOM_CAPACITY = 12
 
 export const Lobby = ({
   room,
+  language,
   playerId,
   isHost,
   busy,
@@ -29,52 +33,48 @@ export const Lobby = ({
   const humanCount = room.players.filter((player) => !player.isBot && player.connected).length
   const botCount = room.players.filter((player) => player.isBot).length
   const soloStart = humanCount === 1 && botCount === 0
+  const t = (key: MessageKey, vars?: MessageVars) => translate(language, key, vars)
 
   return (
     <main className={ui.layout}>
       <section className={`${ui.card} ${ui.cardWide}`}>
         <div className={ui.cardHead}>
           <div>
-            <p className={ui.eyebrow}>Lobby</p>
-            <h2>Waiting for players</h2>
+            <p className={ui.eyebrow}>{t('lobby.eyebrow')}</p>
+            <h2>{t('lobby.waiting')}</h2>
           </div>
-          <RoomCode code={room.code} />
+          <RoomCode code={room.code} language={language} />
         </div>
 
-        <p className={ui.muted}>
-          Share the code so friends can join. The host starts the match when everyone is ready.
-        </p>
+        <p className={ui.muted}>{t('lobby.share')}</p>
 
         <ul className={styles.facts}>
           <li>
             <strong>{room.maxRounds}</strong>
-            <span>rounds</span>
+            <span>{t('common.rounds')}</span>
           </li>
           <li>
             <strong>{Math.round(ROUND_DURATION_MS / 1000)}s</strong>
-            <span>per round</span>
+            <span>{t('common.perRound')}</span>
           </li>
           <li>
             <strong>{room.players.filter((player) => player.connected).length}</strong>
-            <span>ready</span>
+            <span>{t('common.ready')}</span>
           </li>
         </ul>
 
         {isHost && (
           <div className={styles.botControls}>
             <div>
-              <strong>Bots</strong>
-              <p className={`${ui.muted} ${ui.small}`}>
-                Add computer players to keep the room competitive. Starting alone fills three
-                seats automatically.
-              </p>
+              <strong>{t('lobby.bots')}</strong>
+              <p className={`${ui.muted} ${ui.small}`}>{t('lobby.botsNote')}</p>
             </div>
             <button
               className={ui.button}
               onClick={onAddBot}
               disabled={busy || room.players.length >= ROOM_CAPACITY}
             >
-              Add bot
+              {t('lobby.addBot')}
             </button>
           </div>
         )}
@@ -85,17 +85,18 @@ export const Lobby = ({
             onClick={onStart}
             disabled={busy}
           >
-            {busy ? 'Starting...' : soloStart ? 'Start with bots' : 'Start game'}
+            {busy ? t('lobby.starting') : soloStart ? t('lobby.startWithBots') : t('lobby.startGame')}
           </button>
         ) : (
-          <p className={ui.waiting}>Waiting for the host to start...</p>
+          <p className={ui.waiting}>{t('lobby.waitingHost')}</p>
         )}
       </section>
 
       <PlayerList
         players={room.players}
         playerId={playerId}
-        title="Players"
+        language={language}
+        title={t('lobby.players')}
         showScores={false}
         showSubmitted={false}
         onRemoveBot={isHost ? onRemoveBot : undefined}

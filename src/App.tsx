@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ActionResult, SubmitResult } from '../shared/events'
+import { translate, type MessageKey, type MessageVars } from '../shared/i18n'
+import type { LanguageCode } from '../shared/languages'
 import type { RoomState } from '../shared/types'
 import styles from './App.module.scss'
+import { AppHeader } from './components/AppHeader'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 import { Rules } from './components/Rules'
@@ -9,22 +12,25 @@ import type { ConnectionStatus } from './connection'
 import { socket } from './socket'
 import {
   getPlayerId,
+  getStoredLanguage,
   getStoredName,
   getStoredRoomCode,
+  getStoredTheme,
+  storeLanguage,
   storeName,
   storeRoomCode,
+  storeTheme,
+  type Theme,
 } from './storage'
+import { applyTheme } from './theme'
 
 const ACK_TIMEOUT_MS = 6000
-
-const unreachable = (): ActionResult => ({
-  ok: false,
-  error: 'Could not reach the server. Please try again.',
-})
 
 export const App = () => {
   const playerId = useMemo(getPlayerId, [])
   const [name, setName] = useState(getStoredName)
+  const [language, setLanguage] = useState<LanguageCode>(getStoredLanguage)
+  const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [room, setRoom] = useState<RoomState | null>(null)
   const [status, setStatus] = useState<ConnectionStatus>(
     socket.connected ? 'connected' : 'connecting',
@@ -38,6 +44,18 @@ export const App = () => {
   const activeCodeRef = useRef<string | null>(getStoredRoomCode())
   const nameRef = useRef(name)
   nameRef.current = name
+  const languageRef = useRef(language)
+  languageRef.current = language
+
+  const t = useCallback(
+    (key: MessageKey, vars?: MessageVars) => translate(languageRef.current, key, vars),
+    [],
+  )
+
+  const unreachable = useCallback(
+    (): ActionResult => ({ ok: false, error: t('error.unreachable') }),
+    [t],
+  )
 
   const notify = useCallback((message: string) => {
     setNotice(message)
@@ -52,6 +70,25 @@ export const App = () => {
     storeName(value)
   }, [])
 
+  const handleLanguageChange = useCallback((value: LanguageCode) => {
+    setLanguage(value)
+    languageRef.current = value
+    storeLanguage(value)
+  }, [])
+
+  const handleThemeToggle = useCallback(() => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+  }, [])
+
+  useEffect(() => {
+    applyTheme(theme)
+    storeTheme(theme)
+  }, [theme])
+
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
+
   const joinWithCode = useCallback(
     async (code: string): Promise<ActionResult> => {
       try {
@@ -61,6 +98,7 @@ export const App = () => {
             playerId,
             name: nameRef.current.trim() || 'Player',
             code,
+            language: languageRef.current,
           })
 
         if (result.ok && result.code) {
@@ -73,14 +111,14 @@ export const App = () => {
         return unreachable()
       }
     },
-    [playerId],
+    [playerId, unreachable],
   )
 
   const createRoom = useCallback(
     async (bots = 0) => {
       const trimmed = nameRef.current.trim()
       if (!trimmed) {
-        setError('Choose a name before creating a room')
+        setError(t('error.chooseNameCreate'))
         return
       }
 
@@ -88,9 +126,11 @@ export const App = () => {
       setError(null)
 
       try {
-        const result = await socket
-          .timeout(ACK_TIMEOUT_MS)
-          .emitWithAck('room:create', { playerId, name: trimmed })
+        const result = await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('room:create', {
+          playerId,
+          name: trimmed,
+          language: languageRef.current,
+        })
 
         if (result.ok && result.code) {
           activeCodeRef.current = result.code
@@ -106,28 +146,28 @@ export const App = () => {
             }
           }
         } else {
-          setError(result.error ?? 'Could not create a room')
+          setError(result.error ?? t('error.createRoom'))
         }
       } catch {
-        setError(unreachable().error ?? 'Could not reach the server')
+        setError(unreachable().error ?? t('error.unreachable'))
       } finally {
         setBusy(false)
       }
     },
-    [playerId],
+    [playerId, t, unreachable],
   )
 
   const joinRoom = useCallback(
     async (rawCode: string) => {
       const trimmed = nameRef.current.trim()
       if (!trimmed) {
-        setError('Choose a name before joining a room')
+        setError(t('error.chooseNameJoin'))
         return
       }
 
       const code = rawCode.trim().toUpperCase()
       if (code.length === 0) {
-        setError('Enter a room code')
+        setError(t('error.enterCode'))
         return
       }
 
@@ -136,12 +176,12 @@ export const App = () => {
 
       const result = await joinWithCode(code)
       if (!result.ok) {
-        setError(result.error ?? 'Could not join that room')
+        setError(result.error ?? t('error.joinRoom'))
       }
 
       setBusy(false)
     },
-    [joinWithCode],
+    [joinWithCode, t],
   )
 
   const leaveRoom = useCallback(async () => {
@@ -163,15 +203,15 @@ export const App = () => {
       try {
         const result = await socket.timeout(ACK_TIMEOUT_MS).emitWithAck(event)
         if (!result.ok) {
-          notify(result.error ?? 'That action is not available right now')
+          notify(result.error ?? t('error.actionUnavailable'))
         }
       } catch {
-        notify(unreachable().error ?? 'Could not reach the server')
+        notify(unreachable().error ?? t('error.unreachable'))
       } finally {
         setBusy(false)
       }
     },
-    [notify],
+    [notify, t, unreachable],
   )
 
   const addBots = useCallback(
@@ -182,15 +222,15 @@ export const App = () => {
           .timeout(ACK_TIMEOUT_MS)
           .emitWithAck('room:addBots', { count })
         if (!result.ok) {
-          notify(result.error ?? 'Could not add a bot')
+          notify(result.error ?? t('error.addBot'))
         }
       } catch {
-        notify(unreachable().error ?? 'Could not reach the server')
+        notify(unreachable().error ?? t('error.unreachable'))
       } finally {
         setBusy(false)
       }
     },
-    [notify],
+    [notify, t, unreachable],
   )
 
   const removeBot = useCallback(
@@ -201,24 +241,27 @@ export const App = () => {
           .timeout(ACK_TIMEOUT_MS)
           .emitWithAck('room:removeBot', { botId })
         if (!result.ok) {
-          notify(result.error ?? 'Could not remove that bot')
+          notify(result.error ?? t('error.removeBot'))
         }
       } catch {
-        notify(unreachable().error ?? 'Could not reach the server')
+        notify(unreachable().error ?? t('error.unreachable'))
       } finally {
         setBusy(false)
       }
     },
-    [notify],
+    [notify, t, unreachable],
   )
 
-  const submitWord = useCallback(async (word: string): Promise<SubmitResult> => {
-    try {
-      return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('word:submit', { word })
-    } catch {
-      return { ok: false, error: unreachable().error }
-    }
-  }, [])
+  const submitWord = useCallback(
+    async (word: string): Promise<SubmitResult> => {
+      try {
+        return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('word:submit', { word })
+      } catch {
+        return { ok: false, error: t('error.unreachable') }
+      }
+    },
+    [t],
+  )
 
   useEffect(() => {
     const handleConnect = () => {
@@ -237,13 +280,14 @@ export const App = () => {
               playerId,
               name: nameRef.current.trim() || 'Player',
               code,
+              language: languageRef.current,
             })
 
           if (!result.ok) {
             activeCodeRef.current = null
             storeRoomCode(null)
             setRoom(null)
-            notify(result.error ?? 'That room is no longer available')
+            notify(result.error ?? t('error.roomGone'))
           }
         } catch {
           // the next reconnect attempt will try again
@@ -265,7 +309,7 @@ export const App = () => {
       activeCodeRef.current = null
       storeRoomCode(null)
       setRoom(null)
-      notify('The room was closed')
+      notify(t('error.roomClosed'))
     }
 
     const handleNotice = (message: string) => notify(message)
@@ -289,15 +333,23 @@ export const App = () => {
       socket.off('room:closed', handleClosed)
       socket.off('notice', handleNotice)
     }
-  }, [notify, playerId])
+  }, [notify, playerId, t])
 
   return (
     <div className={styles.app}>
+      <AppHeader
+        language={language}
+        theme={theme}
+        onLanguageChange={handleLanguageChange}
+        onToggleTheme={handleThemeToggle}
+      />
+
       {showRules ? (
-        <Rules onClose={() => setShowRules(false)} />
+        <Rules language={language} onClose={() => setShowRules(false)} />
       ) : room ? (
         <Room
           room={room}
+          language={language}
           playerId={playerId}
           serverOffset={serverOffset}
           status={status}
@@ -314,6 +366,7 @@ export const App = () => {
       ) : (
         <Home
           name={name}
+          language={language}
           status={status}
           busy={busy}
           error={error}

@@ -1,3 +1,5 @@
+import { translate, type MessageKey, type MessageVars } from '../../shared/i18n'
+import type { LanguageCode } from '../../shared/languages'
 import type { RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import { PlayerList } from './PlayerList'
@@ -5,15 +7,24 @@ import styles from './Results.module.scss'
 
 interface ResultsProps {
   room: RoomState
+  language: LanguageCode
   playerId: string
   isHost: boolean
   busy: boolean
   onNext: () => void
 }
 
-export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) => {
+export const Results = ({
+  room,
+  language,
+  playerId,
+  isHost,
+  busy,
+  onNext,
+}: ResultsProps) => {
   const round = room.round
   const submissions = round ? [...round.submissions].sort((a, b) => b.points - a.points) : []
+  const t = (key: MessageKey, vars?: MessageVars) => translate(language, key, vars)
 
   return (
     <main className={`${ui.layout} ${ui.layoutResults}`}>
@@ -21,13 +32,16 @@ export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) 
         <div className={ui.cardHead}>
           <div>
             <p className={ui.eyebrow}>
-              Round {round?.index ?? room.roundNumber} of {room.maxRounds}
+              {t('results.roundOf', {
+                index: round?.index ?? room.roundNumber,
+                total: room.maxRounds,
+              })}
             </p>
-            <h2>Round complete</h2>
+            <h2>{t('results.complete')}</h2>
           </div>
           {round && (
             <div className={`${ui.target} ${ui.targetSmall}`}>
-              <p className={ui.targetLabel}>Target</p>
+              <p className={ui.targetLabel}>{t('results.target')}</p>
               <p className={ui.targetLetters}>{round.target.toUpperCase()}</p>
             </div>
           )}
@@ -35,9 +49,9 @@ export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) 
 
         <div className={styles.resultsGrid}>
           <div>
-            <h3>Round words</h3>
+            <h3>{t('results.roundWords')}</h3>
             {submissions.length === 0 ? (
-              <p className={ui.muted}>Nobody found a word this round.</p>
+              <p className={ui.muted}>{t('results.noWords')}</p>
             ) : (
               <ul className={ui.feedList}>
                 {submissions.map((submission, index) => (
@@ -48,7 +62,7 @@ export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) 
                     <span className={ui.feedWord}>{submission.word}</span>
                     <span className={ui.feedPlayer}>
                       {submission.playerName}
-                      {index === 0 ? ' · first blood' : ''}
+                      {index === 0 ? t('common.firstBlood') : ''}
                     </span>
                     <span className={ui.feedPoints}>+{submission.points}</span>
                   </li>
@@ -60,7 +74,8 @@ export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) 
           <PlayerList
             players={room.players}
             playerId={playerId}
-            title="Leaderboard"
+            language={language}
+            title={t('results.leaderboard')}
             showScores
           />
         </div>
@@ -71,10 +86,10 @@ export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) 
             onClick={onNext}
             disabled={busy}
           >
-            {busy ? 'Starting...' : 'Next round'}
+            {busy ? t('results.starting') : t('results.nextRound')}
           </button>
         ) : (
-          <p className={ui.waiting}>Waiting for the host to continue...</p>
+          <p className={ui.waiting}>{t('results.waitingHost')}</p>
         )}
       </section>
     </main>

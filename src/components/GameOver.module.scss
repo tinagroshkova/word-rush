@@ -26,26 +26,26 @@
   padding: 14px 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: rgba(6, 8, 18, 0.45);
+  background: var(--surface-panel-soft);
 }
 
 .row1 {
-  border-color: rgba(251, 191, 36, 0.45);
-  background: linear-gradient(90deg, rgba(251, 191, 36, 0.14), rgba(6, 8, 18, 0.45));
+  border-color: var(--gold-border);
+  background: linear-gradient(90deg, var(--gold-soft), var(--surface-panel-soft));
 }
 
 .row2 {
-  border-color: rgba(203, 213, 225, 0.35);
-  background: linear-gradient(90deg, rgba(203, 213, 225, 0.1), rgba(6, 8, 18, 0.45));
+  border-color: var(--silver-border);
+  background: linear-gradient(90deg, var(--silver-soft), var(--surface-panel-soft));
 }
 
 .row3 {
-  border-color: rgba(217, 119, 6, 0.35);
-  background: linear-gradient(90deg, rgba(217, 119, 6, 0.1), rgba(6, 8, 18, 0.45));
+  border-color: var(--bronze-border);
+  background: linear-gradient(90deg, var(--bronze-soft), var(--surface-panel-soft));
 }
 
 .isYou {
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.45);
+  box-shadow: inset 0 0 0 1px var(--you-ring);
 }
 
 .place {
@@ -56,15 +56,15 @@
 }
 
 .row1 .place {
-  color: #fbbf24;
+  color: var(--gold);
 }
 
 .row2 .place {
-  color: #cbd5e1;
+  color: var(--silver);
 }
 
 .row3 .place {
-  color: #f59e0b;
+  color: var(--bronze);
 }
 
 .name {

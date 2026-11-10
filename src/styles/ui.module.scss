@@ -37,7 +37,7 @@
 
 .button:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-hover);
 }
 
 .button:active:not(:disabled) {
@@ -51,14 +51,14 @@
 
 .buttonPrimary {
   border-color: transparent;
-  background: linear-gradient(120deg, var(--accent), #9d7bff 55%, var(--accent-2));
-  color: #0a0b16;
-  box-shadow: 0 14px 34px rgba(124, 92, 255, 0.32);
+  background: var(--primary-gradient);
+  color: var(--accent-contrast);
+  box-shadow: var(--primary-shadow);
 }
 
 .buttonPrimary:hover:not(:disabled) {
-  background: linear-gradient(120deg, #8b6dff, #ab8bff 55%, #4fe3f7);
-  box-shadow: 0 18px 40px rgba(124, 92, 255, 0.42);
+  background: var(--primary-gradient-hover);
+  box-shadow: var(--primary-shadow-hover);
 }
 
 .buttonGhost {
@@ -95,9 +95,9 @@
   margin-top: 20px;
   padding: 14px 18px;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(251, 113, 133, 0.35);
-  background: rgba(251, 113, 133, 0.12);
-  color: #ffc4cd;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger-text);
 }
 
 .status {
@@ -191,8 +191,8 @@
   padding: 7px 12px;
   border-radius: 999px;
   background: var(--accent-soft);
-  border: 1px solid rgba(124, 92, 255, 0.35);
-  color: #d9d0ff;
+  border: 1px solid var(--pill-border);
+  color: var(--pill-text);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -202,7 +202,7 @@
 .tag {
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--tag-bg);
   color: var(--muted);
   font-size: 0.6rem;
   font-weight: 700;
@@ -211,18 +211,18 @@
 }
 
 .tagYou {
-  background: rgba(34, 211, 238, 0.16);
+  background: var(--accent-2-soft);
   color: var(--accent-2);
 }
 
 .tagOffline {
-  background: rgba(251, 113, 133, 0.16);
+  background: var(--danger-soft);
   color: var(--danger);
 }
 
 .tagBot {
-  background: rgba(124, 92, 255, 0.18);
-  color: #c4b5ff;
+  background: var(--accent-soft-strong);
+  color: var(--tag-bot-text);
 }
 
 .waiting {
@@ -259,9 +259,9 @@
   padding: clamp(20px, 4vw, 32px);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(circle at 50% 0%, rgba(124, 92, 255, 0.28), transparent 65%),
-    rgba(6, 8, 18, 0.55);
-  border: 1px solid rgba(124, 92, 255, 0.35);
+    radial-gradient(circle at 50% 0%, var(--target-glow), transparent 65%),
+    var(--target-bg);
+  border: 1px solid var(--accent-border);
   text-align: center;
 }
 
@@ -278,7 +278,12 @@
   font-weight: 800;
   letter-spacing: 0.18em;
   line-height: 1;
-  background: linear-gradient(120deg, #ffffff, var(--accent-2) 60%, var(--accent));
+  background: linear-gradient(
+    120deg,
+    var(--target-text-start),
+    var(--accent-2) 60%,
+    var(--accent)
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -324,14 +329,14 @@
   gap: 12px;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
-  background: rgba(6, 8, 18, 0.45);
+  background: var(--surface-panel-soft);
   border: 1px solid var(--border);
   animation: rise 0.25s ease both;
 }
 
 .feedWinner {
-  border-color: rgba(251, 191, 36, 0.45);
-  background: rgba(251, 191, 36, 0.08);
+  border-color: var(--gold-border);
+  background: var(--gold-soft);
 }
 
 .feedWord {

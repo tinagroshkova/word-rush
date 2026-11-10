@@ -17,7 +17,7 @@
   gap: 4px;
   padding: 16px;
   border-radius: var(--radius-md);
-  background: rgba(6, 8, 18, 0.5);
+  background: var(--surface-panel);
   border: 1px solid var(--border);
 }
 
@@ -41,7 +41,7 @@
   padding: 14px 16px;
   border-radius: var(--radius-md);
   border: 1px dashed var(--border-strong);
-  background: rgba(6, 8, 18, 0.35);
+  background: var(--surface-panel-faint);
 }
 
 .botControls strong {

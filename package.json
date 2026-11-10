@@ -26,6 +26,8 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "concurrently": "^10.0.7",
+    "dictionary-bg": "^2.0.0",
+    "hunspell-reader": "^10.4.1",
     "sass": "^1.108.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

@@ -1,3 +1,6 @@
+import { translate } from './i18n'
+import { DEFAULT_LANGUAGE, type LanguageCode } from './languages'
+import { BULGARIAN_TARGET_POOL } from './targets-bg'
 import type { ValidationReason } from './types'
 
 export const ROUND_DURATION_MS = 20_000
@@ -158,8 +161,17 @@ export const TARGET_POOL: readonly string[] = [
   'here',
 ]
 
+export const TARGET_POOLS: Record<LanguageCode, readonly string[]> = {
+  en: TARGET_POOL,
+  bg: BULGARIAN_TARGET_POOL,
+}
+
 export const normalizeWord = (raw: string): string =>
-  raw.trim().toLowerCase().replace(/[^a-z]/g, '')
+  raw
+    .trim()
+    .toLowerCase()
+    .replace(/ѝ/g, 'и')
+    .replace(/[^\p{L}]/gu, '')
 
 export interface ValidationInput {
   word: string
@@ -227,8 +239,12 @@ export const scoreWord = ({
   return BASE_POINTS + lengthBonus + speedBonus + firstBonus
 }
 
-export const pickTargets = (random: () => number, count: number): string[] => {
-  const pool = [...TARGET_POOL]
+export const pickTargets = (
+  random: () => number,
+  count: number,
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): string[] => {
+  const pool = [...TARGET_POOLS[language]]
   const picked: string[] = []
 
   for (let i = 0; i < count && pool.length > 0; i += 1) {
@@ -242,23 +258,26 @@ export const pickTargets = (random: () => number, count: number): string[] => {
   return picked
 }
 
-export const describeReason = (reason: ValidationReason | null): string => {
+export const describeReason = (
+  language: LanguageCode,
+  reason: ValidationReason | null,
+): string => {
   switch (reason) {
     case 'too-short':
-      return `Words need at least ${MIN_WORD_LENGTH} letters`
+      return translate(language, 'reason.tooShort', { min: MIN_WORD_LENGTH })
     case 'too-long':
-      return `Words can be at most ${MAX_WORD_LENGTH} letters`
+      return translate(language, 'reason.tooLong', { max: MAX_WORD_LENGTH })
     case 'missing-target':
-      return 'Your word must contain the target letters'
+      return translate(language, 'reason.missingTarget')
     case 'not-a-word':
-      return 'That is not a word we recognise'
+      return translate(language, 'reason.notAWord')
     case 'duplicate':
-      return 'Someone already used that word'
+      return translate(language, 'reason.duplicate')
     case 'already-submitted':
-      return 'You already locked in a word this round'
+      return translate(language, 'reason.alreadySubmitted')
     case 'round-closed':
-      return 'This round is already over'
+      return translate(language, 'reason.roundClosed')
     default:
-      return 'Something went wrong'
+      return translate(language, 'reason.unknown')
   }
 }

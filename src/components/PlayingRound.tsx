@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { SubmitResult } from '../../shared/events'
-import { MAX_WORD_LENGTH, MIN_WORD_LENGTH } from '../../shared/game'
+import { describeReason, MAX_WORD_LENGTH, MIN_WORD_LENGTH } from '../../shared/game'
+import { translate, type MessageKey, type MessageVars } from '../../shared/i18n'
+import type { LanguageCode } from '../../shared/languages'
 import type { RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import { Countdown } from './Countdown'
@@ -9,6 +11,7 @@ import styles from './PlayingRound.module.scss'
 
 interface PlayingRoundProps {
   room: RoomState
+  language: LanguageCode
   playerId: string
   serverOffset: number
   onSubmit: (word: string) => Promise<SubmitResult>
@@ -18,6 +21,7 @@ type Feedback = { tone: 'ok' | 'bad'; text: string }
 
 export const PlayingRound = ({
   room,
+  language,
   playerId,
   serverOffset,
   onSubmit,
@@ -27,6 +31,7 @@ export const PlayingRound = ({
   const [word, setWord] = useState('')
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const t = (key: MessageKey, vars?: MessageVars) => translate(language, key, vars)
 
   useEffect(() => {
     setWord('')
@@ -60,12 +65,17 @@ export const PlayingRound = ({
       setWord('')
       setFeedback({
         tone: 'ok',
-        text: `Accepted "${result.outcome.word}" for ${result.outcome.points} points`,
+        text: t('play.accepted', {
+          word: result.outcome.word,
+          points: result.outcome.points,
+        }),
       })
     } else {
       setFeedback({
         tone: 'bad',
-        text: result.error ?? 'That word did not count',
+        text: result.reason
+          ? describeReason(language, result.reason)
+          : result.error ?? t('play.didNotCount'),
       })
     }
   }
@@ -75,7 +85,7 @@ export const PlayingRound = ({
       <section className={`${ui.card} ${ui.cardWide} ${styles.game}`}>
         <div className={styles.gameTop}>
           <span className={ui.pill}>
-            Round {round.index} / {room.maxRounds}
+            {t('play.round', { index: round.index, total: room.maxRounds })}
           </span>
           <Countdown
             endsAt={round.endsAt}
@@ -85,23 +95,26 @@ export const PlayingRound = ({
         </div>
 
         <div className={ui.target}>
-          <p className={ui.targetLabel}>Your word must contain</p>
+          <p className={ui.targetLabel}>{t('play.mustContain')}</p>
           <p className={ui.targetLetters}>{round.target.toUpperCase()}</p>
         </div>
 
         {locked ? (
           <div className={styles.locked}>
-            <p className={styles.lockedTitle}>Locked in</p>
-            <p className={ui.muted}>Nice. Wait for the round to end to see everyone&apos;s words.</p>
+            <p className={styles.lockedTitle}>{t('play.lockedIn')}</p>
+            <p className={ui.muted}>{t('play.lockedNote')}</p>
           </div>
         ) : (
           <form className={styles.wordForm} onSubmit={handleSubmit}>
             <label className={`${ui.field} ${styles.wordField}`}>
-              <span className={ui.fieldLabel}>Your word</span>
+              <span className={ui.fieldLabel}>{t('play.yourWord')}</span>
               <input
                 value={word}
                 onChange={(event) => setWord(event.target.value.toLowerCase())}
-                placeholder={`Contains "${round.target}" · ${MIN_WORD_LENGTH}+ letters`}
+                placeholder={t('play.placeholder', {
+                  target: round.target,
+                  min: MIN_WORD_LENGTH,
+                })}
                 maxLength={MAX_WORD_LENGTH}
                 autoFocus
                 autoComplete="off"
@@ -115,7 +128,7 @@ export const PlayingRound = ({
               type="submit"
               disabled={submitting || word.trim().length === 0}
             >
-              {submitting ? 'Checking...' : 'Submit word'}
+              {submitting ? t('play.checking') : t('play.submit')}
             </button>
           </form>
         )}
@@ -132,9 +145,9 @@ export const PlayingRound = ({
         )}
 
         <div className={ui.feed}>
-          <h3>Words in play</h3>
+          <h3>{t('play.wordsInPlay')}</h3>
           {submissions.length === 0 ? (
-            <p className={ui.muted}>No words yet. Be the first.</p>
+            <p className={ui.muted}>{t('play.noWords')}</p>
           ) : (
             <ul className={ui.feedList}>
               {submissions.map((submission, index) => (
@@ -142,7 +155,7 @@ export const PlayingRound = ({
                   <span className={ui.feedWord}>{submission.word}</span>
                   <span className={ui.feedPlayer}>
                     {submission.playerName}
-                    {index === 0 ? ' · first' : ''}
+                    {index === 0 ? t('common.first') : ''}
                   </span>
                   <span className={ui.feedPoints}>+{submission.points}</span>
                 </li>
@@ -155,7 +168,8 @@ export const PlayingRound = ({
       <PlayerList
         players={room.players}
         playerId={playerId}
-        title="Players"
+        language={language}
+        title={t('lobby.players')}
         showScores={false}
         showSubmitted
       />

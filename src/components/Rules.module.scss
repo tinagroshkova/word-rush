@@ -1,7 +1,7 @@
 .page {
   max-width: 980px;
   margin: 0 auto;
-  padding: clamp(16px, 4vw, 40px) 0 48px;
+  padding: clamp(8px, 2vw, 24px) 0 48px;
   animation: fade-in 0.35s ease both;
 }
 
@@ -86,7 +86,7 @@
   padding: 14px 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  background: rgba(6, 8, 18, 0.55);
+  background: var(--surface-panel);
   color: var(--accent-2);
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 0.9rem;
@@ -126,8 +126,8 @@
 .example {
   padding: 14px 16px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(52, 211, 153, 0.28);
-  background: rgba(52, 211, 153, 0.07);
+  border: 1px solid var(--success-border);
+  background: var(--success-soft);
 }
 
 .example p {

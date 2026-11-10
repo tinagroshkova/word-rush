@@ -2,16 +2,20 @@ import type { ActionResult, SubmitResult } from '../shared/events'
 import {
   DEFAULT_MAX_ROUNDS,
   ROUND_DURATION_MS,
+  TARGET_POOLS,
   describeReason,
   pickTargets,
   scoreWord,
   validateWord,
 } from '../shared/game'
+import { translate } from '../shared/i18n'
+import { DEFAULT_LANGUAGE, type LanguageCode } from '../shared/languages'
 import type { GamePhase, Player, RoomState, RoundState } from '../shared/types'
 
 interface Room {
   code: string
   hostId: string
+  language: LanguageCode
   phase: GamePhase
   players: Map<string, Player>
   round: RoundState | null
@@ -28,7 +32,12 @@ interface Room {
 }
 
 export type Broadcast = (code: string, state: RoomState) => void
-export type BotWordPicker = (target: string, usedWords: ReadonlySet<string>) => string | null
+export type WordChecker = (language: LanguageCode, word: string) => boolean
+export type BotWordPicker = (
+  language: LanguageCode,
+  target: string,
+  usedWords: ReadonlySet<string>,
+) => string | null
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE_LENGTH = 4
@@ -70,13 +79,14 @@ export class RoomStore {
   private rooms: Map<string, Room> = new Map()
   private playerRooms: Map<string, string> = new Map()
   private playerSockets: Map<string, string> = new Map()
+  private playerLanguages: Map<string, LanguageCode> = new Map()
   private broadcast: Broadcast
-  private isWord: (word: string) => boolean
+  private isWord: WordChecker
   private pickBotWord: BotWordPicker
 
   constructor(
     broadcast: Broadcast,
-    isWord: (word: string) => boolean,
+    isWord: WordChecker,
     pickBotWord: BotWordPicker = () => null,
   ) {
     this.broadcast = broadcast
@@ -84,7 +94,12 @@ export class RoomStore {
     this.pickBotWord = pickBotWord
   }
 
-  createRoom = (playerId: string, name: string, socketId: string): ActionResult => {
+  createRoom = (
+    playerId: string,
+    name: string,
+    socketId: string,
+    language: LanguageCode = DEFAULT_LANGUAGE,
+  ): ActionResult => {
     this.leaveRoom(playerId)
 
     let code = this.randomCode()
@@ -95,6 +110,7 @@ export class RoomStore {
     const room: Room = {
       code,
       hostId: playerId,
+      language,
       phase: 'lobby',
       players: new Map([[playerId, makePlayer(playerId, name)]]),
       round: null,
@@ -113,16 +129,23 @@ export class RoomStore {
     this.rooms.set(code, room)
     this.playerRooms.set(playerId, code)
     this.playerSockets.set(playerId, socketId)
+    this.playerLanguages.set(playerId, language)
 
     return { ok: true, code }
   }
 
-  joinRoom = (playerId: string, name: string, rawCode: string, socketId: string): ActionResult => {
+  joinRoom = (
+    playerId: string,
+    name: string,
+    rawCode: string,
+    socketId: string,
+    language: LanguageCode = DEFAULT_LANGUAGE,
+  ): ActionResult => {
     const code = rawCode.trim().toUpperCase()
     const room = this.rooms.get(code)
 
     if (!room) {
-      return { ok: false, error: 'No room with that code' }
+      return { ok: false, error: translate(language, 'error.noRoom') }
     }
 
     const existing = room.players.get(playerId)
@@ -133,16 +156,17 @@ export class RoomStore {
       this.clearEmptyTimer(room)
       this.playerRooms.set(playerId, code)
       this.playerSockets.set(playerId, socketId)
+      this.playerLanguages.set(playerId, room.language)
       this.reassignHost(room)
       return { ok: true, code }
     }
 
     if (room.phase !== 'lobby') {
-      return { ok: false, error: 'That game is already in progress' }
+      return { ok: false, error: translate(room.language, 'error.inProgress') }
     }
 
     if (room.players.size >= MAX_PLAYERS) {
-      return { ok: false, error: 'That room is full' }
+      return { ok: false, error: translate(room.language, 'error.roomFull') }
     }
 
     const current = this.playerRooms.get(playerId)
@@ -154,6 +178,7 @@ export class RoomStore {
     this.clearEmptyTimer(room)
     this.playerRooms.set(playerId, code)
     this.playerSockets.set(playerId, socketId)
+    this.playerLanguages.set(playerId, room.language)
 
     return { ok: true, code }
   }
@@ -161,21 +186,21 @@ export class RoomStore {
   addBots = (playerId: string, count: number): ActionResult => {
     const room = this.roomOf(playerId)
     if (!room) {
-      return { ok: false, error: 'You are not in a room' }
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
     }
     if (room.hostId !== playerId) {
-      return { ok: false, error: 'Only the host can add bots' }
+      return { ok: false, error: translate(room.language, 'error.hostAddBots') }
     }
     if (room.phase !== 'lobby') {
-      return { ok: false, error: 'Bots can only be added in the lobby' }
+      return { ok: false, error: translate(room.language, 'error.botsLobby') }
     }
     if (room.players.size >= MAX_PLAYERS) {
-      return { ok: false, error: 'That room is full' }
+      return { ok: false, error: translate(room.language, 'error.roomFull') }
     }
 
     const added = this.addBotsToRoom(room, count)
     if (added === 0) {
-      return { ok: false, error: 'Could not add a bot' }
+      return { ok: false, error: translate(room.language, 'error.addBot') }
     }
 
     this.sync(room.code)
@@ -185,24 +210,25 @@ export class RoomStore {
   removeBot = (playerId: string, botId: string): ActionResult => {
     const room = this.roomOf(playerId)
     if (!room) {
-      return { ok: false, error: 'You are not in a room' }
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
     }
     if (room.hostId !== playerId) {
-      return { ok: false, error: 'Only the host can remove bots' }
+      return { ok: false, error: translate(room.language, 'error.hostRemoveBots') }
     }
     if (room.phase !== 'lobby') {
-      return { ok: false, error: 'Bots can only be removed in the lobby' }
+      return { ok: false, error: translate(room.language, 'error.botsRemoveLobby') }
     }
 
     const bot = room.players.get(botId)
     if (!bot?.isBot) {
-      return { ok: false, error: 'That is not a bot in this room' }
+      return { ok: false, error: translate(room.language, 'error.notBot') }
     }
 
     room.players.delete(botId)
     room.botSkills.delete(botId)
     this.playerRooms.delete(botId)
     this.playerSockets.delete(botId)
+    this.playerLanguages.delete(botId)
     this.clearBotTimer(room, botId)
     this.sync(room.code)
     return { ok: true }
@@ -218,13 +244,13 @@ export class RoomStore {
   startGame = (playerId: string): ActionResult => {
     const room = this.roomOf(playerId)
     if (!room) {
-      return { ok: false, error: 'You are not in a room' }
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
     }
     if (room.hostId !== playerId) {
-      return { ok: false, error: 'Only the host can start the game' }
+      return { ok: false, error: translate(room.language, 'error.hostStart') }
     }
     if (room.phase !== 'lobby') {
-      return { ok: false, error: 'The game already started' }
+      return { ok: false, error: translate(room.language, 'error.alreadyStarted') }
     }
 
     const hasOtherHumans = [...room.players.values()].some(
@@ -237,7 +263,7 @@ export class RoomStore {
 
     room.roundNumber = 0
     room.usedWords.clear()
-    room.targetQueue = pickTargets(Math.random, room.maxRounds)
+    room.targetQueue = pickTargets(Math.random, room.maxRounds, room.language)
     room.players.forEach((player) => {
       player.score = 0
       player.submitted = false
@@ -250,13 +276,13 @@ export class RoomStore {
   nextRound = (playerId: string): ActionResult => {
     const room = this.roomOf(playerId)
     if (!room) {
-      return { ok: false, error: 'You are not in a room' }
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
     }
     if (room.hostId !== playerId) {
-      return { ok: false, error: 'Only the host can start the next round' }
+      return { ok: false, error: translate(room.language, 'error.hostNext') }
     }
     if (room.phase !== 'reveal') {
-      return { ok: false, error: 'No round is ready to start' }
+      return { ok: false, error: translate(room.language, 'error.noRound') }
     }
 
     this.startRound(room)
@@ -266,10 +292,10 @@ export class RoomStore {
   restart = (playerId: string): ActionResult => {
     const room = this.roomOf(playerId)
     if (!room) {
-      return { ok: false, error: 'You are not in a room' }
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
     }
     if (room.hostId !== playerId) {
-      return { ok: false, error: 'Only the host can restart the game' }
+      return { ok: false, error: translate(room.language, 'error.hostRestart') }
     }
 
     this.clearRoundTimer(room)
@@ -290,38 +316,50 @@ export class RoomStore {
   submit = (playerId: string, rawWord: string): SubmitResult => {
     const room = this.roomOf(playerId)
     if (!room) {
-      return { ok: false, error: 'You are not in a room' }
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
     }
     if (room.phase !== 'playing' || !room.round) {
-      return { ok: false, reason: 'round-closed', error: describeReason('round-closed') }
+      return {
+        ok: false,
+        reason: 'round-closed',
+        error: describeReason(room.language, 'round-closed'),
+      }
     }
 
     const player = room.players.get(playerId)
     if (!player) {
-      return { ok: false, error: 'You are not in this room' }
+      return { ok: false, error: translate(room.language, 'error.notInThisRoom') }
     }
     if (player.submitted) {
-      return { ok: false, reason: 'already-submitted', error: describeReason('already-submitted') }
+      return {
+        ok: false,
+        reason: 'already-submitted',
+        error: describeReason(room.language, 'already-submitted'),
+      }
     }
 
     const msLeft = room.round.endsAt - Date.now()
     if (msLeft <= 0) {
       this.endRound(room.code)
-      return { ok: false, reason: 'round-closed', error: describeReason('round-closed') }
+      return {
+        ok: false,
+        reason: 'round-closed',
+        error: describeReason(room.language, 'round-closed'),
+      }
     }
 
     const validation = validateWord({
       word: rawWord,
       target: room.round.target,
       usedWords: room.usedWords,
-      isDictionaryWord: this.isWord,
+      isDictionaryWord: (word) => this.isWord(room.language, word),
     })
 
     if (!validation.valid) {
       return {
         ok: false,
         reason: validation.reason ?? undefined,
-        error: describeReason(validation.reason),
+        error: describeReason(room.language, validation.reason),
       }
     }
 
@@ -383,6 +421,7 @@ export class RoomStore {
 
     this.playerRooms.delete(playerId)
     this.playerSockets.delete(playerId)
+    this.playerLanguages.delete(playerId)
   }
 
   handleDisconnect = (playerId: string, socketId: string): void => {
@@ -411,7 +450,11 @@ export class RoomStore {
 
   private startRound = (room: Room): void => {
     room.roundNumber += 1
-    const target = room.targetQueue[room.roundNumber - 1] ?? pickTargets(Math.random, 1)[0] ?? 'ar'
+    const target =
+      room.targetQueue[room.roundNumber - 1] ??
+      pickTargets(Math.random, 1, room.language)[0] ??
+      TARGET_POOLS[room.language][0] ??
+      'ar'
     const now = Date.now()
 
     room.players.forEach((player) => {
@@ -556,7 +599,8 @@ export class RoomStore {
     }
   }
 
-  private botPlay = (room: Room, botId: string): void => {    if (room.phase !== 'playing' || !room.round) {
+  private botPlay = (room: Room, botId: string): void => {
+    if (room.phase !== 'playing' || !room.round) {
       return
     }
 
@@ -565,7 +609,7 @@ export class RoomStore {
       return
     }
 
-    const word = this.pickBotWord(room.round.target, room.usedWords)
+    const word = this.pickBotWord(room.language, room.round.target, room.usedWords)
     if (!word) {
       bot.submitted = true
       this.sync(room.code)
@@ -623,6 +667,7 @@ export class RoomStore {
     room.players.forEach((_player, id) => {
       this.playerRooms.delete(id)
       this.playerSockets.delete(id)
+      this.playerLanguages.delete(id)
     })
     this.rooms.delete(code)
   }
@@ -659,6 +704,9 @@ export class RoomStore {
     return code ? this.rooms.get(code) : undefined
   }
 
+  private languageOf = (playerId: string): LanguageCode =>
+    this.playerLanguages.get(playerId) ?? DEFAULT_LANGUAGE
+
   private randomCode = (): string => {
     let code = ''
     for (let i = 0; i < CODE_LENGTH; i += 1) {
@@ -672,6 +720,7 @@ export class RoomStore {
     code: room.code,
     phase: room.phase,
     hostId: room.hostId,
+    language: room.language,
     players: [...room.players.values()]
       .map((player) => ({ ...player, isHost: player.id === room.hostId }))
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)),

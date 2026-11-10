@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b0d17" />
+    <script>
+      (function () {
+        var theme = 'dark'
+        try {
+          var stored = localStorage.getItem('word-rush:theme')
+          if (stored === 'light' || stored === 'dark') {
+            theme = stored
+          }
+        } catch (e) {
+          theme = 'dark'
+        }
+        document.documentElement.dataset.theme = theme
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) {
+          meta.setAttribute('content', theme === 'light' ? '#eef1fb' : '#0b0d17')
+        }
+      })()
+    </script>
     <title>Word Rush</title>
   </head>
   <body>

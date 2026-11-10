@@ -1,4 +1,6 @@
 import type { SubmitResult } from '../../shared/events'
+import { translate, type MessageKey } from '../../shared/i18n'
+import { LANGUAGES, type LanguageCode } from '../../shared/languages'
 import type { RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import type { ConnectionStatus } from '../connection'
@@ -10,6 +12,7 @@ import styles from './Room.module.scss'
 
 interface RoomProps {
   room: RoomState
+  language: LanguageCode
   playerId: string
   serverOffset: number
   status: ConnectionStatus
@@ -26,6 +29,7 @@ interface RoomProps {
 
 export const Room = ({
   room,
+  language,
   playerId,
   serverOffset,
   status,
@@ -40,45 +44,54 @@ export const Room = ({
   onSubmit,
 }: RoomProps) => {
   const isHost = room.hostId === playerId
+  const t = (key: MessageKey) => translate(language, key)
+  const wordLanguage = LANGUAGES.find((option) => option.code === room.language)
   const statusClass =
     status === 'connected'
       ? ui.statusConnected
       : status === 'connecting'
         ? ui.statusConnecting
         : ui.statusDisconnected
+  const statusLabel =
+    status === 'connected'
+      ? t('status.live')
+      : status === 'connecting'
+        ? t('status.connecting')
+        : t('status.disconnected')
 
   return (
     <div className={styles.room}>
       <header className={styles.roomHeader}>
         <div className={styles.roomIdentity}>
-          <span className={`${ui.brand} ${styles.roomLogo}`}>
-            Word<span>Rush</span>
-          </span>
           <span className={styles.roomCode}>
-            Room <strong>{room.code}</strong>
+            {t('common.room')} <strong>{room.code}</strong>
+          </span>
+          <span className={ui.tag} title={t('room.wordLanguage')}>
+            {wordLanguage?.nativeLabel ?? room.language.toUpperCase()}
           </span>
         </div>
         <div className={styles.roomActions}>
           <span className={`${ui.status} ${statusClass}`}>
             <span className={ui.statusDot} />
-            {status === 'connected' ? 'live' : status}
+            {statusLabel}
           </span>
           <button className={`${ui.button} ${ui.buttonGhost}`} onClick={onShowRules}>
-            Rules
+            {t('common.rules')}
           </button>
           <button className={`${ui.button} ${ui.buttonGhost}`} onClick={onLeave}>
-            Leave
+            {t('common.leave')}
           </button>
         </div>
       </header>
 
       {status !== 'connected' && (
-        <div className={styles.banner}>Reconnecting to the room...</div>
+        <div className={styles.banner}>{t('status.reconnecting')}</div>
       )}
 
       {room.phase === 'lobby' && (
         <Lobby
           room={room}
+          language={language}
           playerId={playerId}
           isHost={isHost}
           busy={busy}
@@ -91,6 +104,7 @@ export const Room = ({
       {room.phase === 'playing' && (
         <PlayingRound
           room={room}
+          language={language}
           playerId={playerId}
           serverOffset={serverOffset}
           onSubmit={onSubmit}
@@ -100,6 +114,7 @@ export const Room = ({
       {room.phase === 'reveal' && (
         <Results
           room={room}
+          language={language}
           playerId={playerId}
           isHost={isHost}
           busy={busy}
@@ -110,6 +125,7 @@ export const Room = ({
       {room.phase === 'finished' && (
         <GameOver
           room={room}
+          language={language}
           playerId={playerId}
           isHost={isHost}
           busy={busy}

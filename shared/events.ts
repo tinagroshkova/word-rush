@@ -1,3 +1,4 @@
+import type { LanguageCode } from './languages'
 import type { RoomState, SubmitOutcome, ValidationReason } from './types'
 
 export interface ActionResult {
@@ -14,12 +15,14 @@ export interface SubmitResult extends ActionResult {
 export interface CreateRoomPayload {
   playerId: string
   name: string
+  language?: LanguageCode
 }
 
 export interface JoinRoomPayload {
   playerId: string
   name: string
   code: string
+  language?: LanguageCode
 }
 
 export interface SubmitWordPayload {

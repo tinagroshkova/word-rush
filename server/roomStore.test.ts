@@ -1,17 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MAX_ROUNDS, ROUND_DURATION_MS } from '../shared/game'
+import type { LanguageCode } from '../shared/languages'
 import type { RoomState } from '../shared/types'
 import { RoomStore } from './roomStore'
 
-const isWord = (word: string): boolean => word.length >= 4
+const isWord = (_language: LanguageCode, word: string): boolean => word.length >= 4
 
 const wordFor = (target: string): string =>
   `${target}${'z'.repeat(Math.max(0, 4 - target.length))}`
 
 const setup = () => {
   let latest: RoomState | null = null
-  const pickBotWord = (target: string, usedWords: ReadonlySet<string>): string =>
-    `${target}${'z'.repeat(2 + usedWords.size)}`
+  const pickBotWord = (
+    _language: LanguageCode,
+    target: string,
+    usedWords: ReadonlySet<string>,
+  ): string => `${target}${'z'.repeat(2 + usedWords.size)}`
   const store = new RoomStore(
     (_code, state) => {
       latest = state
@@ -60,6 +64,7 @@ describe('RoomStore', () => {
 
     expect(state().code).toBe(code)
     expect(state().phase).toBe('lobby')
+    expect(state().language).toBe('en')
     expect(state().players).toHaveLength(2)
 
     expect(store.startGame('p1').ok).toBe(true)
@@ -69,6 +74,23 @@ describe('RoomStore', () => {
     expect(round).not.toBeNull()
     expect(round?.index).toBe(1)
     expect((round?.endsAt ?? 0) - (round?.startedAt ?? 0)).toBe(ROUND_DURATION_MS)
+  })
+
+  it('creates a Bulgarian room with Cyrillic targets', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1', 'bg')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    store.sync(code)
+    expect(state().language).toBe('bg')
+
+    expect(store.startGame('p1').ok).toBe(true)
+    const target = state().round?.target ?? ''
+    expect(target).toMatch(/^[а-я]{2,4}$/)
   })
 
   it('scores the first valid word and ends the round when everyone is locked in', () => {

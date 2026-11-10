@@ -11,7 +11,7 @@
   padding: 13px 22px;
   border-radius: 999px;
   border: 1px solid var(--border-strong);
-  background: rgba(18, 21, 39, 0.94);
+  background: var(--toast-bg);
   box-shadow: var(--shadow);
   font-weight: 600;
   animation: toast-in 0.25s ease both;

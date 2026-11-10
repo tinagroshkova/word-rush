@@ -1,7 +1,7 @@
 .home {
   max-width: 1020px;
   margin: 0 auto;
-  padding: clamp(16px, 5vw, 56px) 0 48px;
+  padding: clamp(8px, 2vw, 24px) 0 48px;
   animation: fade-in 0.5s ease both;
 }
 
@@ -55,7 +55,7 @@
   padding: clamp(20px, 3vw, 28px);
   border-radius: var(--radius-lg);
   border: 1px dashed var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface);
 }
 
 .how h2 {
