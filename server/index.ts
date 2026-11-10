@@ -83,19 +83,26 @@ const io = new Server<
   },
 })
 
-const store = new RoomStore((code, state) => {
-  const members = io.sockets.adapter.rooms.get(code)
-  if (!members) {
-    return
-  }
-
-  for (const socketId of members) {
-    const target = io.sockets.sockets.get(socketId)
-    if (target) {
-      target.emit('state:update', maskRoomStateForPlayer(state, target.data.playerId))
+const store = new RoomStore(
+  (code, state) => {
+    const members = io.sockets.adapter.rooms.get(code)
+    if (!members) {
+      return
     }
-  }
-}, isDictionaryWord, pickBotWord)
+
+    for (const socketId of members) {
+      const target = io.sockets.sockets.get(socketId)
+      if (target) {
+        target.emit('state:update', maskRoomStateForPlayer(state, target.data.playerId))
+      }
+    }
+  },
+  isDictionaryWord,
+  pickBotWord,
+  (code, event) => {
+    io.to(code).emit('emote', event)
+  },
+)
 
 io.on('connection', (socket) => {
   const language = (): LanguageCode =>
@@ -106,13 +113,13 @@ io.on('connection', (socket) => {
     error: translate(language(), 'error.notInRoom'),
   })
 
-  socket.on('room:create', async ({ playerId, name, language: requested }, ack) => {
+  socket.on('room:create', async ({ playerId, name, language: requested, daily }, ack) => {
     if (socket.data.code) {
       await socket.leave(socket.data.code)
     }
 
     const chosen = isLanguageCode(requested) ? requested : DEFAULT_LANGUAGE
-    const result = store.createRoom(playerId, name, socket.id, chosen)
+    const result = store.createRoom(playerId, name, socket.id, chosen, daily === true)
 
     if (result.ok && result.code) {
       socket.data.playerId = playerId
@@ -167,6 +174,10 @@ io.on('connection', (socket) => {
     ack(socket.data.playerId ? store.removeBot(socket.data.playerId, botId) : notInRoom())
   })
 
+  socket.on('room:updateSettings', ({ settings }, ack) => {
+    ack(socket.data.playerId ? store.updateSettings(socket.data.playerId, settings) : notInRoom())
+  })
+
   socket.on('game:start', (ack) => {
     ack(socket.data.playerId ? store.startGame(socket.data.playerId) : notInRoom())
   })
@@ -186,6 +197,16 @@ io.on('connection', (socket) => {
     }
 
     ack(store.submit(socket.data.playerId, word))
+  })
+
+  socket.on('powerup:use', ({ type }, ack) => {
+    ack(socket.data.playerId ? store.usePowerUp(socket.data.playerId, type) : notInRoom())
+  })
+
+  socket.on('emote:send', ({ emoji }) => {
+    if (socket.data.playerId) {
+      store.sendEmote(socket.data.playerId, emoji)
+    }
   })
 
   socket.on('disconnect', () => {

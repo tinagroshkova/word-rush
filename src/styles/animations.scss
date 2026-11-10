@@ -70,6 +70,18 @@
   animation: global(toast-in) $duration $timing $fill-mode;
 }
 
+@mixin emote-pop(
+  $duration: 0.45s,
+  $timing: cubic-bezier(0.18, 0.9, 0.25, 1.2),
+  $fill-mode: both
+) {
+  animation: global(emote-pop) $duration $timing $fill-mode;
+}
+
+@mixin emote-wiggle($duration: 1.1s, $timing: ease-in-out, $iteration: infinite) {
+  animation: global(emote-wiggle) $duration $timing $iteration;
+}
+
 // Global keyframes used by the mixins above. The mixin-wrapping keeps them
 // co-located in this file while emitting CSS only once — include it from the
 // global entry `src/global.scss` (never from a CSS module, or they get duplicated).
@@ -208,6 +220,37 @@
     to {
       opacity: 1;
       transform: translate(-50%, 0);
+    }
+  }
+
+  @keyframes emote-pop {
+    0% {
+      opacity: 0;
+      transform: translate3d(28px, 18px, 0) scale(0.35) rotate(-14deg);
+    }
+    60% {
+      opacity: 1;
+      transform: translate3d(0, -5px, 0) scale(1.14) rotate(5deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    }
+  }
+
+  @keyframes emote-wiggle {
+    0%,
+    100% {
+      transform: scale(1) rotate(0deg);
+    }
+    25% {
+      transform: scale(1.18) rotate(-9deg);
+    }
+    50% {
+      transform: scale(1.04) rotate(7deg);
+    }
+    75% {
+      transform: scale(1.16) rotate(-4deg);
     }
   }
 }

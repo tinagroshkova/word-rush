@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import {
+  COMEBACK_BONUS,
+  DEFAULT_SETTINGS,
   FIRST_BLOOD_BONUS,
+  LONGEST_WORD_BONUS,
+  MAX_ROUNDS,
   MAX_WORD_LENGTH,
+  MIN_ROUNDS,
   MIN_WORD_LENGTH,
+  RARE_LETTER_BONUS,
+  STREAK_BONUS,
   TARGET_POOL,
+  clampSettings,
+  dailySeed,
   pickTargets,
+  scoreBreakdown,
   scoreWord,
+  seededRandom,
   validateWord,
 } from './game'
 
@@ -105,5 +116,93 @@ describe('pickTargets', () => {
     const targets = pickTargets(() => 0.5, 10_000)
     expect(new Set(targets).size).toBe(targets.length)
     expect(targets.length).toBeLessThan(10_000)
+  })
+
+  it('filters targets by difficulty length', () => {
+    const hard = pickTargets(() => 0, 5, 'en', 'hard')
+    expect(hard.every((target) => target.length >= 3 && target.length <= 4)).toBe(true)
+  })
+})
+
+describe('bonuses', () => {
+  it('rewards rare letters', () => {
+    const breakdown = scoreBreakdown({
+      wordLength: 5,
+      msLeft: 0,
+      durationMs: 1000,
+      isFirst: false,
+      word: 'zebra',
+    })
+    expect(breakdown.rare).toBe(RARE_LETTER_BONUS)
+  })
+
+  it('scales the streak bonus and caps it', () => {
+    const two = scoreBreakdown({
+      wordLength: MIN_WORD_LENGTH,
+      msLeft: 0,
+      durationMs: 1000,
+      isFirst: false,
+      streak: 2,
+    })
+    const six = scoreBreakdown({
+      wordLength: MIN_WORD_LENGTH,
+      msLeft: 0,
+      durationMs: 1000,
+      isFirst: false,
+      streak: 6,
+    })
+    expect(two.streak).toBe(STREAK_BONUS)
+    expect(six.streak).toBe(STREAK_BONUS * 5)
+  })
+
+  it('adds longest word and comeback bonuses', () => {
+    const breakdown = scoreBreakdown({
+      wordLength: MIN_WORD_LENGTH,
+      msLeft: 0,
+      durationMs: 1000,
+      isFirst: false,
+      isLongest: true,
+      isComeback: true,
+    })
+    expect(breakdown.longest).toBe(LONGEST_WORD_BONUS)
+    expect(breakdown.comeback).toBe(COMEBACK_BONUS)
+  })
+})
+
+describe('settings and randomness', () => {
+  it('clamps out-of-range settings', () => {
+    const clamped = clampSettings({
+      maxRounds: MAX_ROUNDS + 10,
+      roundDurationMs: 1,
+      minWordLength: 99,
+      difficulty: 'normal',
+      mode: 'classic',
+    })
+    expect(clamped.maxRounds).toBe(MAX_ROUNDS)
+    expect(clamped.minWordLength).toBeLessThan(99)
+    expect(clamped.roundDurationMs).toBeGreaterThan(1)
+  })
+
+  it('keeps valid settings unchanged', () => {
+    expect(clampSettings(DEFAULT_SETTINGS)).toEqual(DEFAULT_SETTINGS)
+    expect(clampSettings({ ...DEFAULT_SETTINGS, maxRounds: MIN_ROUNDS }).maxRounds).toBe(
+      MIN_ROUNDS,
+    )
+  })
+
+  it('produces deterministic seeded sequences', () => {
+    const a = seededRandom(42)
+    const b = seededRandom(42)
+    const first = Array.from({ length: 5 }, () => a())
+    const second = Array.from({ length: 5 }, () => b())
+    expect(first).toEqual(second)
+  })
+
+  it('keeps the daily seed stable within a day', () => {
+    const morning = dailySeed(new Date('2026-05-01T08:00:00Z'))
+    const evening = dailySeed(new Date('2026-05-01T22:00:00Z'))
+    const nextDay = dailySeed(new Date('2026-05-02T08:00:00Z'))
+    expect(morning).toBe(evening)
+    expect(morning).not.toBe(nextDay)
   })
 })

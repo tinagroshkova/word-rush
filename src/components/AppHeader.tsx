@@ -7,8 +7,10 @@ import styles from "./AppHeader.module.scss";
 interface AppHeaderProps {
   language: LanguageCode;
   theme: Theme;
+  soundOn: boolean;
   onLanguageChange: (language: LanguageCode) => void;
   onToggleTheme: () => void;
+  onToggleSound: () => void;
 }
 
 const SunIcon = () => (
@@ -43,15 +45,39 @@ const MoonIcon = () => (
   </svg>
 );
 
+const SoundIcon = ({ muted }: { muted: boolean }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+    {muted ? (
+      <path d="m16 9 5 6M21 9l-5 6" />
+    ) : (
+      <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+    )}
+  </svg>
+);
+
 export const AppHeader = ({
   language,
   theme,
+  soundOn,
   onLanguageChange,
   onToggleTheme,
+  onToggleSound,
 }: AppHeaderProps) => {
   const t = (key: MessageKey) => translate(language, key);
   const themeLabel =
     theme === "dark" ? t("header.switchToLight") : t("header.switchToDark");
+  const soundLabel = soundOn ? t("header.soundOn") : t("header.soundOff");
 
   return (
     <header className={styles.header}>
@@ -76,6 +102,16 @@ export const AppHeader = ({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className={styles.themeButton}
+          onClick={onToggleSound}
+          title={soundLabel}
+          aria-label={soundLabel}
+          aria-pressed={soundOn}
+        >
+          <SoundIcon muted={!soundOn} />
+        </button>
         <button
           type="button"
           className={styles.themeButton}

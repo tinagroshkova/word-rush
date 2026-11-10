@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { RoomState, Submission } from './types'
+import { DEFAULT_SETTINGS } from './game'
+import type { Player, RoomState, Submission } from './types'
 import { maskRoomStateForPlayer } from './visibility'
 
 const submission = (playerId: string): Submission => ({
@@ -8,6 +9,26 @@ const submission = (playerId: string): Submission => ({
   word: 'word',
   points: 100,
   at: 0,
+  streak: 1,
+  multiplier: 1,
+})
+
+const player = (id: string, name: string, overrides: Partial<Player> = {}): Player => ({
+  id,
+  name,
+  score: 0,
+  isHost: false,
+  isBot: false,
+  connected: true,
+  submitted: false,
+  streak: 0,
+  bestStreak: 0,
+  misses: 0,
+  powerUp: null,
+  powerUpUsed: false,
+  doubleNext: false,
+  spectator: false,
+  ...overrides,
 })
 
 const makeState = (overrides: Partial<RoomState> = {}): RoomState => ({
@@ -16,24 +37,8 @@ const makeState = (overrides: Partial<RoomState> = {}): RoomState => ({
   hostId: 'p1',
   language: 'en',
   players: [
-    {
-      id: 'p1',
-      name: 'Alice',
-      score: 0,
-      isHost: true,
-      isBot: false,
-      connected: true,
-      submitted: false,
-    },
-    {
-      id: 'p2',
-      name: 'Bob',
-      score: 0,
-      isHost: false,
-      isBot: false,
-      connected: true,
-      submitted: true,
-    },
+    player('p1', 'Alice', { isHost: true }),
+    player('p2', 'Bob', { submitted: true }),
   ],
   round: {
     index: 1,
@@ -43,9 +48,13 @@ const makeState = (overrides: Partial<RoomState> = {}): RoomState => ({
     durationMs: 1000,
     submissions: [submission('p2')],
     winnerId: 'p2',
+    mode: 'classic',
+    minWordLength: 4,
   },
   roundNumber: 1,
   maxRounds: 5,
+  settings: DEFAULT_SETTINGS,
+  daily: false,
   serverTime: 0,
   ...overrides,
 })

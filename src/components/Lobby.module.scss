@@ -4,7 +4,7 @@
 
 .facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   list-style: none;
   margin: 22px 0;
@@ -30,6 +30,42 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.settings {
+  margin: 0 0 18px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-panel-faint);
+}
+
+.settingsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0 14px;
+}
+
+.settingsGrid .field {
+  margin-bottom: 14px;
+}
+
+.settingsGrid .small {
+  margin-top: 0;
+}
+
+.saveButton {
+  width: auto;
+  min-width: 170px;
 }
 
 .botControls {

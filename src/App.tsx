@@ -1,28 +1,58 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ActionResult, SubmitResult } from '../shared/events'
+import type {
+  ActionResult,
+  EmoteEvent,
+  PowerUpResult,
+  SubmitResult,
+} from '../shared/events'
+import { RARE_LETTERS } from '../shared/game'
 import { translate, type MessageKey, type MessageVars } from '../shared/i18n'
 import type { LanguageCode } from '../shared/languages'
-import type { RoomState } from '../shared/types'
+import type { PowerUpType, RoomSettings, RoomState } from '../shared/types'
 import styles from './App.module.scss'
 import { AppHeader } from './components/AppHeader'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 import { Rules } from './components/Rules'
 import type { ConnectionStatus } from './connection'
+import { playSound } from './sound'
 import { socket } from './socket'
 import {
   getPlayerId,
+  getStats,
   getStoredLanguage,
   getStoredName,
   getStoredRoomCode,
+  getStoredSound,
   getStoredTheme,
   storeLanguage,
   storeName,
   storeRoomCode,
+  storeSound,
+  storeStats,
   storeTheme,
+  type AchievementId,
+  type PlayerStats,
   type Theme,
 } from './storage'
 import { applyTheme } from './theme'
+
+interface MatchWord {
+  word: string
+  points: number
+}
+
+interface MatchTracker {
+  code: string
+  words: MatchWord[]
+  bestStreak: number
+}
+
+interface EmoteBurst {
+  id: number
+  name: string
+  emoji: string
+}
 
 const ACK_TIMEOUT_MS = 6000
 
@@ -40,12 +70,21 @@ export const App = () => {
   const [busy, setBusy] = useState(false)
   const [serverOffset, setServerOffset] = useState(0)
   const [showRules, setShowRules] = useState(false)
+  const [stats, setStats] = useState<PlayerStats>(getStats)
+  const [soundOn, setSoundOn] = useState(getStoredSound)
+  const [emoteBursts, setEmoteBursts] = useState<EmoteBurst[]>([])
+  const [earnedAchievements, setEarnedAchievements] = useState<AchievementId[]>([])
 
   const activeCodeRef = useRef<string | null>(getStoredRoomCode())
   const nameRef = useRef(name)
   nameRef.current = name
   const languageRef = useRef(language)
   languageRef.current = language
+  const soundOnRef = useRef(soundOn)
+  soundOnRef.current = soundOn
+  const matchRef = useRef<MatchTracker | null>(null)
+  const recordedRef = useRef<string | null>(null)
+  const emoteIdRef = useRef(0)
 
   const t = useCallback(
     (key: MessageKey, vars?: MessageVars) => translate(languageRef.current, key, vars),
@@ -78,6 +117,14 @@ export const App = () => {
 
   const handleThemeToggle = useCallback(() => {
     setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+  }, [])
+
+  const handleSoundToggle = useCallback(() => {
+    setSoundOn((current) => {
+      const next = !current
+      storeSound(next)
+      return next
+    })
   }, [])
 
   useEffect(() => {
@@ -115,7 +162,7 @@ export const App = () => {
   )
 
   const createRoom = useCallback(
-    async (bots = 0) => {
+    async (bots = 0, daily = false) => {
       const trimmed = nameRef.current.trim()
       if (!trimmed) {
         setError(t('error.chooseNameCreate'))
@@ -130,6 +177,7 @@ export const App = () => {
           playerId,
           name: trimmed,
           language: languageRef.current,
+          daily,
         })
 
         if (result.ok && result.code) {
@@ -255,13 +303,64 @@ export const App = () => {
   const submitWord = useCallback(
     async (word: string): Promise<SubmitResult> => {
       try {
-        return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('word:submit', { word })
+        const result = await socket
+          .timeout(ACK_TIMEOUT_MS)
+          .emitWithAck('word:submit', { word })
+        playSound(result.ok ? 'accepted' : 'rejected', soundOnRef.current)
+        return result
       } catch {
         return { ok: false, error: t('error.unreachable') }
       }
     },
     [t],
   )
+
+  const updateSettings = useCallback(
+    async (settings: Partial<RoomSettings>): Promise<boolean> => {
+      setBusy(true)
+      try {
+        const result = await socket
+          .timeout(ACK_TIMEOUT_MS)
+          .emitWithAck('room:updateSettings', { settings })
+        if (result.ok) {
+          notify(t('lobby.settingsSaved'))
+          return true
+        }
+        notify(result.error ?? t('error.invalidSettings'))
+        return false
+      } catch {
+        notify(unreachable().error ?? t('error.unreachable'))
+        return false
+      } finally {
+        setBusy(false)
+      }
+    },
+    [notify, t, unreachable],
+  )
+
+  const usePowerUpAction = useCallback(
+    async (type: PowerUpType): Promise<PowerUpResult> => {
+      try {
+        return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('powerup:use', { type })
+      } catch {
+        return { ok: false, error: t('error.unreachable') }
+      }
+    },
+    [t],
+  )
+
+  const sendEmote = useCallback((emoji: string) => {
+    socket.emit('emote:send', { emoji })
+  }, [])
+
+  const trackWord = useCallback((word: string, points: number, streak: number) => {
+    const current = matchRef.current
+    if (!current) {
+      return
+    }
+    current.words.push({ word, points })
+    current.bestStreak = Math.max(current.bestStreak, streak)
+  }, [])
 
   useEffect(() => {
     const handleConnect = () => {
@@ -303,6 +402,15 @@ export const App = () => {
       setServerOffset(state.serverTime - Date.now())
       activeCodeRef.current = state.code
       storeRoomCode(state.code)
+
+      if (state.phase === 'lobby') {
+        matchRef.current = null
+      } else if (
+        state.phase === 'playing' &&
+        (!matchRef.current || matchRef.current.code !== state.code)
+      ) {
+        matchRef.current = { code: state.code, words: [], bestStreak: 0 }
+      }
     }
 
     const handleClosed = () => {
@@ -314,12 +422,26 @@ export const App = () => {
 
     const handleNotice = (message: string) => notify(message)
 
+    const handleEmote = (event: EmoteEvent) => {
+      playSound('emote', soundOnRef.current)
+      emoteIdRef.current += 1
+      const id = emoteIdRef.current
+      setEmoteBursts((current) => [
+        ...current,
+        { id, name: event.playerName, emoji: event.emoji },
+      ])
+      window.setTimeout(() => {
+        setEmoteBursts((current) => current.filter((burst) => burst.id !== id))
+      }, 3200)
+    }
+
     socket.on('connect', handleConnect)
     socket.on('disconnect', handleDisconnect)
     socket.on('connect_error', handleConnectError)
     socket.on('state:update', handleState)
     socket.on('room:closed', handleClosed)
     socket.on('notice', handleNotice)
+    socket.on('emote', handleEmote)
 
     if (socket.connected) {
       handleConnect()
@@ -332,16 +454,92 @@ export const App = () => {
       socket.off('state:update', handleState)
       socket.off('room:closed', handleClosed)
       socket.off('notice', handleNotice)
+      socket.off('emote', handleEmote)
     }
   }, [notify, playerId, t])
+
+  useEffect(() => {
+    if (!room) {
+      return
+    }
+
+    if (room.phase === 'lobby') {
+      recordedRef.current = null
+      setEarnedAchievements((current) => (current.length === 0 ? current : []))
+      return
+    }
+
+    if (room.phase !== 'finished' || recordedRef.current === room.code) {
+      return
+    }
+
+    recordedRef.current = room.code
+    const me = room.players.find((player) => player.id === playerId)
+    if (!me || me.spectator) {
+      return
+    }
+
+    const tracker = matchRef.current
+    const words = tracker?.words ?? []
+    const bestWord = words.reduce(
+      (best, entry) => (entry.word.length > best.length ? entry.word : best),
+      '',
+    )
+    const bestStreak = Math.max(me.bestStreak, tracker?.bestStreak ?? 0)
+    const topScore = room.players.reduce(
+      (max, player) => Math.max(max, player.score),
+      0,
+    )
+    const won = me.score > 0 && me.score === topScore
+    const earned: AchievementId[] = []
+    if (won) {
+      earned.push('firstWin')
+    }
+    if (bestStreak >= 3) {
+      earned.push('streak3')
+    }
+    if (bestStreak >= 5) {
+      earned.push('streak5')
+    }
+    if (words.some((entry) => [...entry.word].some((letter) => RARE_LETTERS.has(letter)))) {
+      earned.push('rare')
+    }
+    if (bestWord.length >= 8) {
+      earned.push('long')
+    }
+    if (room.daily) {
+      earned.push('daily')
+    }
+
+    setEarnedAchievements(earned)
+    setStats((current) => {
+      const achievements = new Set<AchievementId>(current.achievements)
+      earned.forEach((id) => achievements.add(id))
+      const next: PlayerStats = {
+        games: current.games + 1,
+        wins: current.wins + (won ? 1 : 0),
+        bestScore: Math.max(current.bestScore, me.score),
+        bestWord: bestWord.length > current.bestWord.length ? bestWord : current.bestWord,
+        bestStreak: Math.max(current.bestStreak, bestStreak),
+        achievements: [...achievements],
+      }
+      storeStats(next)
+      return next
+    })
+    if (won) {
+      playSound('win', soundOnRef.current)
+    }
+  }, [room, playerId])
 
   return (
     <div className={styles.app}>
       <AppHeader
         language={language}
         theme={theme}
+        soundOn={soundOn}
         onLanguageChange={handleLanguageChange}
         onToggleTheme={handleThemeToggle}
+        onToggleSound={handleSoundToggle}
       />
 
       {showRules ? (
@@ -354,6 +552,8 @@ export const App = () => {
           serverOffset={serverOffset}
           status={status}
           busy={busy}
+          stats={stats}
+          earnedAchievements={earnedAchievements}
           onLeave={() => void leaveRoom()}
           onStart={() => void runHostAction('game:start')}
           onNext={() => void runHostAction('game:next')}
@@ -362,6 +562,10 @@ export const App = () => {
           onRemoveBot={(botId) => void removeBot(botId)}
           onShowRules={() => setShowRules(true)}
           onSubmit={submitWord}
+          onUpdateSettings={updateSettings}
+          onUsePowerUp={usePowerUpAction}
+          onEmote={sendEmote}
+          onWordAccepted={trackWord}
         />
       ) : (
         <Home
@@ -370,12 +574,25 @@ export const App = () => {
           status={status}
           busy={busy}
           error={error}
+          stats={stats}
           onNameChange={handleNameChange}
           onCreate={() => void createRoom(0)}
           onCreateBots={() => void createRoom(3)}
+          onCreateDaily={() => void createRoom(3, true)}
           onJoin={(code) => void joinRoom(code)}
           onShowRules={() => setShowRules(true)}
         />
+      )}
+
+      {emoteBursts.length > 0 && (
+        <div className={styles.emotes} aria-live="polite">
+          {emoteBursts.map((burst) => (
+            <span key={burst.id} className={styles.emote}>
+              <span className={styles.emoteEmoji}>{burst.emoji}</span>
+              <span className={styles.emoteName}>{burst.name}</span>
+            </span>
+          ))}
+        </div>
       )}
 
       {notice && <div className={styles.toast}>{notice}</div>}

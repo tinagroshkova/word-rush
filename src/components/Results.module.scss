@@ -1,3 +1,49 @@
+.recap h3 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.recapGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.recapGrid div {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-panel-soft);
+}
+
+.recapGrid dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.recapGrid dd {
+  margin: 6px 0 0;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recapPlayer {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .resultsGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -13,6 +59,167 @@
   margin-bottom: 12px;
 }
 
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group {
+  position: relative;
+  padding: 12px 14px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-panel-soft);
+  overflow: hidden;
+}
+
+.group::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent-soft-strong);
+}
+
+.group:nth-child(1)::before {
+  background: var(--gold);
+}
+
+.group:nth-child(2)::before {
+  background: var(--silver);
+}
+
+.group:nth-child(3)::before {
+  background: var(--bronze);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.groupRank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--tag-bg);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankGold {
+  border-color: var(--gold-border);
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.rankSilver {
+  border-color: var(--silver-border);
+  background: var(--silver-soft);
+  color: var(--silver);
+}
+
+.rankBronze {
+  border-color: var(--bronze-border);
+  background: var(--bronze-soft);
+  color: var(--bronze);
+}
+
+.groupName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupMeta {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.groupTotal {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--success-soft-strong);
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.groupWords {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.groupWords li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.84rem;
+  list-style: none;
+  transition: background 0.15s ease;
+}
+
+.groupWords li:hover {
+  background: var(--surface-hover);
+}
+
+.wordText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.wordPoints {
+  flex: 0 0 auto;
+  color: var(--success);
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.multiplier {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--success-soft-strong);
+  color: var(--success);
+  font-size: 0.64rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
 .nextButton {
   align-self: flex-start;
   width: auto;
@@ -26,6 +233,10 @@
 }
 
 @media (max-width: 640px) {
+  .groupWords {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .nextButton {
     width: 100%;
   }

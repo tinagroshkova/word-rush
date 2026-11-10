@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { SubmitResult } from '../../shared/events'
-import { describeReason, MAX_WORD_LENGTH, MIN_WORD_LENGTH } from '../../shared/game'
+import type { PowerUpResult, SubmitResult } from '../../shared/events'
+import { describeReason, MAX_WORD_LENGTH } from '../../shared/game'
 import { translate, type MessageKey, type MessageVars } from '../../shared/i18n'
 import type { LanguageCode } from '../../shared/languages'
-import type { RoomState } from '../../shared/types'
+import type { PowerUpType, RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import { Countdown } from './Countdown'
 import { PlayerList } from './PlayerList'
@@ -15,9 +15,14 @@ interface PlayingRoundProps {
   playerId: string
   serverOffset: number
   onSubmit: (word: string) => Promise<SubmitResult>
+  onUsePowerUp: (type: PowerUpType) => Promise<PowerUpResult>
+  onEmote: (emoji: string) => void
+  onWordAccepted: (word: string, points: number, streak: number) => void
 }
 
 type Feedback = { tone: 'ok' | 'bad'; text: string }
+
+const EMOTES = ['🔥', '😂', '👏', '😱', '💪', '🎯'] as const
 
 export const PlayingRound = ({
   room,
@@ -25,12 +30,16 @@ export const PlayingRound = ({
   playerId,
   serverOffset,
   onSubmit,
+  onUsePowerUp,
+  onEmote,
+  onWordAccepted,
 }: PlayingRoundProps) => {
   const round = room.round
   const me = room.players.find((player) => player.id === playerId)
   const [word, setWord] = useState('')
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [powerBusy, setPowerBusy] = useState(false)
   const t = (key: MessageKey, vars?: MessageVars) => translate(language, key, vars)
 
   useEffect(() => {
@@ -42,13 +51,17 @@ export const PlayingRound = ({
     return null
   }
 
-  const locked = me?.submitted ?? false
-  const submissions = locked ? [...round.submissions].sort((a, b) => a.at - b.at) : []
+  const isRush = round.mode === 'rush'
+  const spectator = me?.spectator ?? false
+  const locked = (me?.submitted ?? false) && !isRush
+  const submissions = [...round.submissions].sort((a, b) => a.at - b.at)
+  const powerUp = me?.powerUp ?? null
+  const powerUpUsed = me?.powerUpUsed ?? false
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
 
-    if (locked || submitting) {
+    if (locked || submitting || spectator) {
       return
     }
 
@@ -63,22 +76,58 @@ export const PlayingRound = ({
 
     if (result.ok && result.outcome) {
       setWord('')
+      const streak = result.outcome.streak
       setFeedback({
         tone: 'ok',
-        text: t('play.accepted', {
-          word: result.outcome.word,
-          points: result.outcome.points,
-        }),
+        text:
+          streak > 1
+            ? t('play.acceptedStreak', {
+                word: result.outcome.word,
+                points: result.outcome.points,
+                streak,
+              })
+            : t('play.accepted', {
+                word: result.outcome.word,
+                points: result.outcome.points,
+              }),
+      })
+      onWordAccepted(result.outcome.word, result.outcome.points, streak)
+    } else {
+      setFeedback({
+        tone: 'bad',
+        text: result.hint
+          ? result.hint
+          : result.reason
+            ? describeReason(language, result.reason, round.minWordLength)
+            : result.error ?? t('play.didNotCount'),
+      })
+    }
+  }
+
+  const handlePowerUp = async () => {
+    if (!powerUp || powerUpUsed || powerBusy) {
+      return
+    }
+
+    setPowerBusy(true)
+    const result = await onUsePowerUp(powerUp)
+    setPowerBusy(false)
+
+    if (result.ok) {
+      setFeedback({
+        tone: 'ok',
+        text: result.hint ?? result.message ?? t('powerup.doubleActive'),
       })
     } else {
       setFeedback({
         tone: 'bad',
-        text: result.reason
-          ? describeReason(language, result.reason)
-          : result.error ?? t('play.didNotCount'),
+        text: result.error ?? t('powerup.unavailable'),
       })
     }
   }
+
+  const powerLabel = powerUp ? t(`play.powerup.${powerUp}` as MessageKey) : ''
+  const powerDesc = powerUp ? t(`play.powerup.${powerUp}Desc` as MessageKey) : ''
 
   return (
     <main className={`${ui.layout} ${ui.layoutGame}`}>
@@ -87,6 +136,21 @@ export const PlayingRound = ({
           <span className={ui.pill}>
             {t('play.round', { index: round.index, total: room.maxRounds })}
           </span>
+          <div className={styles.badges}>
+            <span className={`${ui.pill} ${styles.modePill}`}>
+              {t(`mode.${round.mode}` as MessageKey)}
+            </span>
+            {me && me.streak > 1 && (
+              <span className={`${ui.pill} ${styles.streakPill}`}>
+                {t('play.streak', { count: me.streak })}
+              </span>
+            )}
+            {me?.doubleNext && (
+              <span className={`${ui.pill} ${styles.doublePill}`}>
+                ×2 {t('play.powerup.double')}
+              </span>
+            )}
+          </div>
           <Countdown
             endsAt={round.endsAt}
             serverOffset={serverOffset}
@@ -99,7 +163,12 @@ export const PlayingRound = ({
           <p className={ui.targetLetters}>{round.target.toUpperCase()}</p>
         </div>
 
-        {locked ? (
+        {spectator ? (
+          <div className={styles.locked}>
+            <p className={styles.lockedTitle}>{t('play.spectating')}</p>
+            <p className={ui.muted}>{t('play.spectatingNote')}</p>
+          </div>
+        ) : locked ? (
           <div className={styles.locked}>
             <p className={styles.lockedTitle}>{t('play.lockedIn')}</p>
             <p className={ui.muted}>{t('play.lockedNote')}</p>
@@ -113,7 +182,7 @@ export const PlayingRound = ({
                 onChange={(event) => setWord(event.target.value.toLowerCase())}
                 placeholder={t('play.placeholder', {
                   target: round.target,
-                  min: MIN_WORD_LENGTH,
+                  min: round.minWordLength,
                 })}
                 maxLength={MAX_WORD_LENGTH}
                 autoFocus
@@ -133,6 +202,10 @@ export const PlayingRound = ({
           </form>
         )}
 
+        {isRush && !spectator && (
+          <p className={`${ui.muted} ${ui.small}`}>{t('play.rushNote')}</p>
+        )}
+
         {feedback && (
           <p
             className={`${styles.feedback} ${
@@ -144,15 +217,61 @@ export const PlayingRound = ({
           </p>
         )}
 
+        {!spectator && (
+          <div className={styles.tools}>
+            {powerUp && (
+              <div className={styles.powerUp}>
+                <div>
+                  <strong>{powerLabel}</strong>
+                  <p className={`${ui.muted} ${ui.small}`}>
+                    {powerUpUsed ? t('play.powerUpUsed') : powerDesc}
+                  </p>
+                </div>
+                <button
+                  className={`${ui.button} ${styles.toolButton}`}
+                  onClick={handlePowerUp}
+                  disabled={powerUpUsed || powerBusy || locked}
+                >
+                  {t('play.usePowerUp')}
+                </button>
+              </div>
+            )}
+
+            <div className={styles.emotes}>
+              <span className={ui.fieldLabel}>{t('play.emote')}</span>
+              <div className={styles.emoteRow}>
+                {EMOTES.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={styles.emoteButton}
+                    onClick={() => onEmote(emoji)}
+                    aria-label={emoji}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className={ui.feed}>
           <h3>{t('play.wordsInPlay')}</h3>
           {submissions.length === 0 ? (
-            <p className={ui.muted}>{t(locked ? 'play.noWords' : 'play.hiddenWords')}</p>
+            <p className={ui.muted}>
+              {t(me?.submitted ? 'play.noWords' : 'play.hiddenWords')}
+            </p>
           ) : (
             <ul className={ui.feedList}>
               {submissions.map((submission, index) => (
                 <li key={`${submission.playerId}-${submission.at}`} className={ui.feedItem}>
-                  <span className={ui.feedWord}>{submission.word}</span>
+                  <span className={ui.feedWord}>
+                    {submission.word}
+                    {submission.multiplier > 1 && (
+                      <span className={styles.multiplier}>×{submission.multiplier}</span>
+                    )}
+                  </span>
                   <span className={ui.feedPlayer}>
                     {submission.playerName}
                     {index === 0 ? t('common.first') : ''}

@@ -61,6 +61,19 @@ export const PlayerList = ({
                   {t("common.bot")}
                 </span>
               )}
+              {player.isBot && player.personality && (
+                <span className={ui.tag}>
+                  {t(`bot.${player.personality}` as MessageKey)}
+                </span>
+              )}
+              {player.spectator && (
+                <span className={ui.tag}>{t("common.spectating")}</span>
+              )}
+              {player.streak > 1 && (
+                <span className={`${ui.tag} ${styles.streak}`}>
+                  {t("play.streak", { count: player.streak })}
+                </span>
+              )}
               {player.id === playerId && (
                 <span className={`${ui.tag} ${ui.tagYou}`}>
                   {t("common.you")}

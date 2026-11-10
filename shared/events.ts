@@ -1,5 +1,11 @@
 import type { LanguageCode } from './languages'
-import type { RoomState, SubmitOutcome, ValidationReason } from './types'
+import type {
+  PowerUpType,
+  RoomSettings,
+  RoomState,
+  SubmitOutcome,
+  ValidationReason,
+} from './types'
 
 export interface ActionResult {
   ok: boolean
@@ -10,12 +16,19 @@ export interface ActionResult {
 export interface SubmitResult extends ActionResult {
   outcome?: SubmitOutcome
   reason?: ValidationReason
+  hint?: string
+}
+
+export interface PowerUpResult extends ActionResult {
+  hint?: string
+  message?: string
 }
 
 export interface CreateRoomPayload {
   playerId: string
   name: string
   language?: LanguageCode
+  daily?: boolean
 }
 
 export interface JoinRoomPayload {
@@ -37,9 +50,29 @@ export interface RemoveBotPayload {
   botId: string
 }
 
+export interface UpdateSettingsPayload {
+  settings: Partial<RoomSettings>
+}
+
+export interface UsePowerUpPayload {
+  type: PowerUpType
+}
+
+export interface EmotePayload {
+  emoji: string
+}
+
+export interface EmoteEvent {
+  playerId: string
+  playerName: string
+  emoji: string
+  at: number
+}
+
 export interface ServerToClientEvents {
   'state:update': (state: RoomState) => void
   'room:closed': () => void
+  emote: (event: EmoteEvent) => void
   notice: (message: string) => void
 }
 
@@ -49,8 +82,14 @@ export interface ClientToServerEvents {
   'room:leave': (ack: (result: ActionResult) => void) => void
   'room:addBots': (payload: AddBotsPayload, ack: (result: ActionResult) => void) => void
   'room:removeBot': (payload: RemoveBotPayload, ack: (result: ActionResult) => void) => void
+  'room:updateSettings': (
+    payload: UpdateSettingsPayload,
+    ack: (result: ActionResult) => void,
+  ) => void
   'game:start': (ack: (result: ActionResult) => void) => void
   'game:next': (ack: (result: ActionResult) => void) => void
   'game:restart': (ack: (result: ActionResult) => void) => void
   'word:submit': (payload: SubmitWordPayload, ack: (result: SubmitResult) => void) => void
+  'powerup:use': (payload: UsePowerUpPayload, ack: (result: PowerUpResult) => void) => void
+  'emote:send': (payload: EmotePayload) => void
 }

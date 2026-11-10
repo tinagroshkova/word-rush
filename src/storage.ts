@@ -5,6 +5,34 @@ const NAME_KEY = 'word-rush:name'
 const ROOM_CODE_KEY = 'word-rush:room-code'
 const LANGUAGE_KEY = 'word-rush:language'
 const THEME_KEY = 'word-rush:theme'
+const STATS_KEY = 'word-rush:stats'
+const SOUND_KEY = 'word-rush:sound'
+
+export type AchievementId =
+  | 'firstWin'
+  | 'streak3'
+  | 'streak5'
+  | 'rare'
+  | 'long'
+  | 'daily'
+
+export interface PlayerStats {
+  games: number
+  wins: number
+  bestScore: number
+  bestWord: string
+  bestStreak: number
+  achievements: AchievementId[]
+}
+
+export const EMPTY_STATS: PlayerStats = {
+  games: 0,
+  wins: 0,
+  bestScore: 0,
+  bestWord: '',
+  bestStreak: 0,
+  achievements: [],
+}
 
 export type Theme = 'dark' | 'light'
 
@@ -78,3 +106,32 @@ export const getStoredTheme = (): Theme => {
 }
 
 export const storeTheme = (theme: Theme): void => write(THEME_KEY, theme)
+
+export const getStats = (): PlayerStats => {
+  const stored = read(STATS_KEY)
+  if (!stored) {
+    return { ...EMPTY_STATS, achievements: [] }
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<PlayerStats>
+    return {
+      games: Number(parsed.games) || 0,
+      wins: Number(parsed.wins) || 0,
+      bestScore: Number(parsed.bestScore) || 0,
+      bestWord: typeof parsed.bestWord === 'string' ? parsed.bestWord : '',
+      bestStreak: Number(parsed.bestStreak) || 0,
+      achievements: Array.isArray(parsed.achievements)
+        ? parsed.achievements.filter((id): id is AchievementId => typeof id === 'string')
+        : [],
+    }
+  } catch {
+    return { ...EMPTY_STATS, achievements: [] }
+  }
+}
+
+export const storeStats = (stats: PlayerStats): void => write(STATS_KEY, JSON.stringify(stats))
+
+export const getStoredSound = (): boolean => read(SOUND_KEY) !== 'off'
+
+export const storeSound = (enabled: boolean): void => write(SOUND_KEY, enabled ? 'on' : 'off')

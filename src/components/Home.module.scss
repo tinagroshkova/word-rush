@@ -43,13 +43,50 @@
 
 .heroActions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 10px;
   margin-top: 20px;
 }
 
 .heroActions button {
   width: auto;
   min-width: 170px;
+}
+
+.stats {
+  margin-top: 26px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.statsGrid div {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-panel-soft);
+}
+
+.statsGrid dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.statsGrid dd {
+  margin: 6px 0 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .how {

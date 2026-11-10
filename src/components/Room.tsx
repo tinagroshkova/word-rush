@@ -1,9 +1,10 @@
-import type { SubmitResult } from '../../shared/events'
+import type { PowerUpResult, SubmitResult } from '../../shared/events'
 import { translate, type MessageKey } from '../../shared/i18n'
 import { LANGUAGES, type LanguageCode } from '../../shared/languages'
-import type { RoomState } from '../../shared/types'
+import type { PowerUpType, RoomSettings, RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import type { ConnectionStatus } from '../connection'
+import type { AchievementId, PlayerStats } from '../storage'
 import { GameOver } from './GameOver'
 import { Lobby } from './Lobby'
 import { PlayingRound } from './PlayingRound'
@@ -17,6 +18,8 @@ interface RoomProps {
   serverOffset: number
   status: ConnectionStatus
   busy: boolean
+  stats: PlayerStats
+  earnedAchievements: AchievementId[]
   onLeave: () => void
   onStart: () => void
   onNext: () => void
@@ -25,6 +28,10 @@ interface RoomProps {
   onRemoveBot: (botId: string) => void
   onShowRules: () => void
   onSubmit: (word: string) => Promise<SubmitResult>
+  onUpdateSettings: (settings: Partial<RoomSettings>) => Promise<boolean>
+  onUsePowerUp: (type: PowerUpType) => Promise<PowerUpResult>
+  onEmote: (emoji: string) => void
+  onWordAccepted: (word: string, points: number, streak: number) => void
 }
 
 export const Room = ({
@@ -34,6 +41,8 @@ export const Room = ({
   serverOffset,
   status,
   busy,
+  stats,
+  earnedAchievements,
   onLeave,
   onStart,
   onNext,
@@ -42,6 +51,10 @@ export const Room = ({
   onRemoveBot,
   onShowRules,
   onSubmit,
+  onUpdateSettings,
+  onUsePowerUp,
+  onEmote,
+  onWordAccepted,
 }: RoomProps) => {
   const isHost = room.hostId === playerId
   const t = (key: MessageKey) => translate(language, key)
@@ -69,6 +82,7 @@ export const Room = ({
           <span className={ui.tag} title={t('room.wordLanguage')}>
             {wordLanguage?.nativeLabel ?? room.language.toUpperCase()}
           </span>
+          {room.daily && <span className={ui.tag}>{t('common.daily')}</span>}
         </div>
         <div className={styles.roomActions}>
           <span className={`${ui.status} ${statusClass}`}>
@@ -98,6 +112,7 @@ export const Room = ({
           onStart={onStart}
           onAddBot={onAddBot}
           onRemoveBot={onRemoveBot}
+          onUpdateSettings={onUpdateSettings}
         />
       )}
 
@@ -108,6 +123,9 @@ export const Room = ({
           playerId={playerId}
           serverOffset={serverOffset}
           onSubmit={onSubmit}
+          onUsePowerUp={onUsePowerUp}
+          onEmote={onEmote}
+          onWordAccepted={onWordAccepted}
         />
       )}
 
@@ -129,6 +147,8 @@ export const Room = ({
           playerId={playerId}
           isHost={isHost}
           busy={busy}
+          stats={stats}
+          earnedAchievements={earnedAchievements}
           onRestart={onRestart}
         />
       )}

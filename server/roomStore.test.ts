@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_MAX_ROUNDS, ROUND_DURATION_MS } from '../shared/game'
+import {
+  DEFAULT_MAX_ROUNDS,
+  MAX_ROUNDS,
+  MIN_ROUND_DURATION_MS,
+  MIN_WORD_LENGTH_SETTING,
+  ROUND_DURATION_MS,
+} from '../shared/game'
 import type { LanguageCode } from '../shared/languages'
 import type { RoomState } from '../shared/types'
 import { RoomStore } from './roomStore'
@@ -179,11 +185,12 @@ describe('RoomStore', () => {
     expect(store.nextRound('p1').ok).toBe(true)
   })
 
-  it('blocks new players mid-game but allows a reconnect', () => {
+  it('lets new players spectate mid-game but allows a reconnect', () => {
     const { store, state, code } = createLobby()
     store.startGame('p1')
 
-    expect(store.joinRoom('p3', 'Cara', code, 's3').ok).toBe(false)
+    expect(store.joinRoom('p3', 'Cara', code, 's3').ok).toBe(true)
+    expect(state().players.find((player) => player.id === 'p3')?.spectator).toBe(true)
 
     store.handleDisconnect('p1', 's1')
     expect(state().players.find((player) => player.id === 'p1')?.connected).toBe(false)
@@ -330,5 +337,159 @@ describe('RoomStore', () => {
 
     vi.advanceTimersByTime(5 * 60_000)
     expect(store.joinRoom('p2', 'Bob', code, 's2').ok).toBe(false)
+  })
+
+  it('lets only the host update and clamps match settings in the lobby', () => {
+    const { store, state } = createLobby()
+
+    expect(store.updateSettings('p2', { mode: 'blitz' }).ok).toBe(false)
+
+    const updated = store.updateSettings('p1', {
+      mode: 'blitz',
+      maxRounds: MAX_ROUNDS + 5,
+      minWordLength: MIN_WORD_LENGTH_SETTING - 1,
+      roundDurationMs: MIN_ROUND_DURATION_MS - 1000,
+    })
+    expect(updated.ok).toBe(true)
+
+    const settings = state().settings
+    expect(settings.mode).toBe('blitz')
+    expect(settings.maxRounds).toBe(MAX_ROUNDS)
+    expect(settings.minWordLength).toBe(MIN_WORD_LENGTH_SETTING)
+    expect(settings.roundDurationMs).toBe(MIN_ROUND_DURATION_MS)
+
+    store.startGame('p1')
+    expect(store.updateSettings('p1', { mode: 'classic' }).ok).toBe(false)
+  })
+
+  it('uses the same daily targets for every room', () => {
+    const first = setup()
+    const second = setup()
+    const a = first.store.createRoom('p1', 'Alice', 's1', 'en', true).code
+    const b = second.store.createRoom('p2', 'Bob', 's2', 'en', true).code
+
+    if (!a || !b) {
+      throw new Error('Room was not created')
+    }
+
+    first.store.startGame('p1')
+    second.store.startGame('p2')
+
+    expect(first.state().daily).toBe(true)
+    expect(first.state().round?.target).toBe(second.state().round?.target)
+  })
+
+  it('lets a late joiner take over a bot seat mid-game', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    expect(store.addBots('p1', 2).ok).toBe(true)
+    store.sync(code)
+    expect(store.startGame('p1').ok).toBe(true)
+
+    const botsBefore = state().players.filter((player) => player.isBot).length
+    expect(store.joinRoom('p3', 'Cara', code, 's3').ok).toBe(true)
+
+    const cara = state().players.find((player) => player.id === 'p3')
+    expect(cara?.spectator).toBe(false)
+    expect(state().players.filter((player) => player.isBot)).toHaveLength(botsBefore - 1)
+  })
+
+  it('tracks streaks and doubles the next word with the double power-up', () => {
+    const { store, state } = createLobby()
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+    try {
+      store.startGame('p1')
+
+      const target = state().round?.target ?? ''
+      expect(store.usePowerUp('p1', 'double').ok).toBe(true)
+      const first = store.submit('p1', wordFor(target))
+      expect(first.outcome?.multiplier).toBe(2)
+      expect(first.outcome?.streak).toBe(1)
+
+      const player = state().players.find((candidate) => candidate.id === 'p1')
+      expect(player?.doubleNext).toBe(false)
+      expect(player?.powerUpUsed).toBe(true)
+    } finally {
+      random.mockRestore()
+    }
+  })
+
+  it('adds five seconds with the extra time power-up', () => {
+    const { store, state } = createLobby()
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.7)
+    try {
+      store.startGame('p1')
+      const before = state().round?.endsAt ?? 0
+
+      expect(store.usePowerUp('p1', 'extraTime').ok).toBe(true)
+      expect(state().round?.endsAt).toBe(before + 5000)
+      expect(store.usePowerUp('p1', 'extraTime').ok).toBe(false)
+    } finally {
+      random.mockRestore()
+    }
+  })
+
+  it('accepts multiple words per round in rush mode', () => {
+    const { store, state } = createLobby()
+    store.updateSettings('p1', { mode: 'rush' })
+    store.startGame('p1')
+
+    const target = state().round?.target ?? ''
+    const first = wordFor(target)
+    const second = `${first}x`
+
+    expect(store.submit('p1', first).ok).toBe(true)
+    expect(store.submit('p1', second).ok).toBe(true)
+    expect(state().phase).toBe('playing')
+    expect(state().round?.submissions).toHaveLength(2)
+  })
+
+  it('keeps bots submitting words during a rush round', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    try {
+      expect(store.addBots('p1', 1).ok).toBe(true)
+      store.updateSettings('p1', { mode: 'rush' })
+      expect(store.startGame('p1').ok).toBe(true)
+
+      vi.advanceTimersByTime(ROUND_DURATION_MS - 500)
+
+      const botIds = new Set(
+        state()
+          .players.filter((player) => player.isBot)
+          .map((player) => player.id),
+      )
+      const botSubmissions =
+        state().round?.submissions.filter((submission) =>
+          botIds.has(submission.playerId),
+        ) ?? []
+
+      expect(botSubmissions.length).toBeGreaterThan(1)
+    } finally {
+      random.mockRestore()
+    }
+  })
+
+  it('resets spectator seats and power-ups on restart', () => {
+    const { store, state } = createLobby()
+    store.startGame('p1')
+    expect(store.restart('p1').ok).toBe(true)
+
+    expect(state().phase).toBe('lobby')
+    expect(state().players.every((player) => player.powerUp === null)).toBe(true)
+    expect(state().players.every((player) => !player.spectator)).toBe(true)
   })
 })

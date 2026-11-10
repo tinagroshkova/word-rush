@@ -10,6 +10,23 @@ export type ValidationReason =
   | 'duplicate'
   | 'already-submitted'
   | 'round-closed'
+  | 'spectating'
+
+export type GameMode = 'classic' | 'blitz' | 'marathon' | 'rush'
+
+export type Difficulty = 'easy' | 'normal' | 'hard'
+
+export type PowerUpType = 'double' | 'hint' | 'extraTime'
+
+export type BotPersonality = 'speedster' | 'scholar' | 'steady'
+
+export interface RoomSettings {
+  maxRounds: number
+  roundDurationMs: number
+  minWordLength: number
+  difficulty: Difficulty
+  mode: GameMode
+}
 
 export interface Player {
   id: string
@@ -19,6 +36,14 @@ export interface Player {
   isBot: boolean
   connected: boolean
   submitted: boolean
+  streak: number
+  bestStreak: number
+  misses: number
+  powerUp: PowerUpType | null
+  powerUpUsed: boolean
+  doubleNext: boolean
+  spectator: boolean
+  personality?: BotPersonality
 }
 
 export interface Submission {
@@ -27,6 +52,8 @@ export interface Submission {
   word: string
   points: number
   at: number
+  streak: number
+  multiplier: number
 }
 
 export interface RoundState {
@@ -37,6 +64,8 @@ export interface RoundState {
   durationMs: number
   submissions: Submission[]
   winnerId: string | null
+  mode: GameMode
+  minWordLength: number
 }
 
 export interface RoomState {
@@ -48,6 +77,8 @@ export interface RoomState {
   round: RoundState | null
   roundNumber: number
   maxRounds: number
+  settings: RoomSettings
+  daily: boolean
   serverTime: number
 }
 
@@ -56,4 +87,6 @@ export interface SubmitOutcome {
   word: string
   points: number
   reason: ValidationReason | null
+  streak: number
+  multiplier: number
 }

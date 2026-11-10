@@ -7,8 +7,18 @@ import {
 } from "../../shared/i18n";
 import type { LanguageCode } from "../../shared/languages";
 import type { Player, RoomState } from "../../shared/types";
+import type { AchievementId, PlayerStats } from "../storage";
 import ui from "../styles/ui.module.scss";
 import styles from "./GameOver.module.scss";
+
+const ACHIEVEMENTS: readonly AchievementId[] = [
+  "firstWin",
+  "streak3",
+  "streak5",
+  "rare",
+  "long",
+  "daily",
+];
 
 const CONFETTI_COLORS = [
   "var(--gold)",
@@ -54,6 +64,8 @@ interface GameOverProps {
   playerId: string;
   isHost: boolean;
   busy: boolean;
+  stats: PlayerStats;
+  earnedAchievements: AchievementId[];
   onRestart: () => void;
 }
 
@@ -88,9 +100,13 @@ export const GameOver = ({
   playerId,
   isHost,
   busy,
+  stats,
+  earnedAchievements,
   onRestart,
 }: GameOverProps) => {
   const standings = buildStandings(room.players);
+  const me = room.players.find((player) => player.id === playerId);
+  const isSpectator = me?.spectator ?? false;
   const winners = standings.filter((standing) => standing.place === 1);
   const t = (key: MessageKey, vars?: MessageVars) =>
     translate(language, key, vars);
@@ -177,6 +193,59 @@ export const GameOver = ({
             </li>
           ))}
         </ol>
+
+        {!isSpectator && (
+          <div className={styles.statsSection}>
+            <h3>{t("over.stats")}</h3>
+            <dl className={styles.statsGrid}>
+              <div>
+                <dt>{t("over.games")}</dt>
+                <dd>{stats.games}</dd>
+              </div>
+              <div>
+                <dt>{t("over.wins")}</dt>
+                <dd>{stats.wins}</dd>
+              </div>
+              <div>
+                <dt>{t("over.bestScore")}</dt>
+                <dd>{stats.bestScore}</dd>
+              </div>
+              <div>
+                <dt>{t("over.bestWord")}</dt>
+                <dd>{stats.bestWord || t("results.none")}</dd>
+              </div>
+              <div>
+                <dt>{t("over.bestStreak")}</dt>
+                <dd>{stats.bestStreak}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
+
+        <div className={styles.statsSection}>
+          <h3>{t("over.achievements")}</h3>
+          <ul className={styles.achievements}>
+            {ACHIEVEMENTS.map((id) => {
+              const earned = stats.achievements.includes(id);
+              const fresh = earnedAchievements.includes(id);
+              return (
+                <li
+                  key={id}
+                  className={[
+                    styles.achievement,
+                    earned ? styles.achievementEarned : "",
+                    fresh ? styles.achievementFresh : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <span className={styles.achievementDot} aria-hidden="true" />
+                  {t(`over.ach.${id}` as MessageKey)}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
         {isHost ? (
           <button

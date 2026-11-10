@@ -3,6 +3,7 @@ import { translate, type MessageKey, type MessageVars } from '../../shared/i18n'
 import type { LanguageCode } from '../../shared/languages'
 import ui from '../styles/ui.module.scss'
 import type { ConnectionStatus } from '../connection'
+import type { PlayerStats } from '../storage'
 import styles from './Home.module.scss'
 
 interface HomeProps {
@@ -11,9 +12,11 @@ interface HomeProps {
   status: ConnectionStatus
   busy: boolean
   error: string | null
+  stats: PlayerStats
   onNameChange: (value: string) => void
   onCreate: () => void
   onCreateBots: () => void
+  onCreateDaily: () => void
   onJoin: (code: string) => void
   onShowRules: () => void
 }
@@ -24,9 +27,11 @@ export const Home = ({
   status,
   busy,
   error,
+  stats,
   onNameChange,
   onCreate,
   onCreateBots,
+  onCreateDaily,
   onJoin,
   onShowRules,
 }: HomeProps) => {
@@ -49,10 +54,18 @@ export const Home = ({
         </h1>
         <p className={styles.lede}>{t('home.tagline')}</p>
         <div className={styles.heroActions}>
+          <button
+            className={`${ui.button} ${ui.buttonPrimary}`}
+            onClick={onCreateDaily}
+            disabled={disabled}
+          >
+            {t('home.dailyChallenge')}
+          </button>
           <button className={`${ui.button} ${ui.buttonGhost}`} onClick={onShowRules}>
             {t('home.rulesButton')}
           </button>
         </div>
+        <p className={`${ui.muted} ${ui.small}`}>{t('home.dailyNote')}</p>
       </header>
 
       <div className={styles.homeGrid}>
@@ -125,6 +138,41 @@ export const Home = ({
             : t('status.connectionLost')}
         </p>
       )}
+
+      <section className={`${ui.card} ${styles.stats}`}>
+        <div className={ui.cardHead}>
+          <h2>{t('home.stats')}</h2>
+          <span className={ui.pill}>
+            {t('over.achievements')}: {stats.achievements.length}
+          </span>
+        </div>
+        {stats.games === 0 ? (
+          <p className={ui.muted}>{t('home.noStats')}</p>
+        ) : (
+          <dl className={styles.statsGrid}>
+            <div>
+              <dt>{t('over.games')}</dt>
+              <dd>{stats.games}</dd>
+            </div>
+            <div>
+              <dt>{t('over.wins')}</dt>
+              <dd>{stats.wins}</dd>
+            </div>
+            <div>
+              <dt>{t('over.bestScore')}</dt>
+              <dd>{stats.bestScore}</dd>
+            </div>
+            <div>
+              <dt>{t('over.bestWord')}</dt>
+              <dd>{stats.bestWord || t('results.none')}</dd>
+            </div>
+            <div>
+              <dt>{t('over.bestStreak')}</dt>
+              <dd>{stats.bestStreak}</dd>
+            </div>
+          </dl>
+        )}
+      </section>
 
       <section className={styles.how}>
         <h2>{t('home.howToPlay')}</h2>

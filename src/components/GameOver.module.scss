@@ -109,7 +109,7 @@
   background: linear-gradient(90deg, var(--bronze-soft), var(--surface-panel-soft));
 }
 
-.isYou {
+.isYou:not(.row1):not(.row2):not(.row3) {
   box-shadow: inset 0 0 0 1px var(--you-ring);
 }
 
@@ -158,6 +158,89 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.statsSection h3 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.statsGrid div {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-panel-soft);
+}
+
+.statsGrid dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.statsGrid dd {
+  margin: 6px 0 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.achievements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.achievement {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-panel-faint);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.achievementDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.achievementEarned {
+  border-color: var(--gold-border);
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.achievementEarned .achievementDot {
+  background: var(--gold);
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+
+.achievementFresh {
+  box-shadow: 0 0 0 1px var(--gold-border), 0 0 18px -4px var(--gold-glow);
 }
 
 @media (max-width: 640px) {

@@ -80,6 +80,7 @@ export const Rules = ({ language, onClose }: RulesProps) => {
               <span>{t('rules.firstBloodValue', { points: FIRST_BLOOD_BONUS })}</span>
             </li>
           </ul>
+          <p className={`${ui.muted} ${styles.bonusNote}`}>{t('rules.bonuses')}</p>
           <div className={styles.example}>
             <p className={ui.eyebrow}>{t('rules.exampleEyebrow')}</p>
             <p>
@@ -122,6 +123,8 @@ export const Rules = ({ language, onClose }: RulesProps) => {
             <li>{t('rules.match2')}</li>
             <li>{t('rules.match3')}</li>
             <li>{t('rules.match4')}</li>
+            <li>{t('rules.modes')}</li>
+            <li>{t('rules.powerups')}</li>
           </ul>
         </section>
       </div>

@@ -87,15 +87,20 @@ export const pickBotWord = (
   language: LanguageCode,
   target: string,
   usedWords: ReadonlySet<string>,
+  minLength: number = MIN_WORD_LENGTH,
   random: () => number = Math.random,
 ): string | null => {
   const data = dataFor(language)
   const shortMatches = matchesFor(data.shortBotWords, target, data.shortCache)
-  let available = shortMatches.filter((word) => !usedWords.has(word))
+  let available = shortMatches.filter(
+    (word) => word.length >= minLength && !usedWords.has(word),
+  )
 
   if (available.length === 0) {
     const longMatches = matchesFor(data.playableWords, target, data.longCache)
-    available = longMatches.filter((word) => !usedWords.has(word))
+    available = longMatches.filter(
+      (word) => word.length >= minLength && !usedWords.has(word),
+    )
   }
 
   if (available.length === 0) {

@@ -1,16 +1,32 @@
-import type { ActionResult, SubmitResult } from '../shared/events'
+import type {
+  ActionResult,
+  EmoteEvent,
+  PowerUpResult,
+  SubmitResult,
+} from '../shared/events'
 import {
-  DEFAULT_MAX_ROUNDS,
-  ROUND_DURATION_MS,
+  DEFAULT_SETTINGS,
   TARGET_POOLS,
+  clampSettings,
+  dailySeed,
   describeReason,
   pickTargets,
+  roundDurationFor,
   scoreWord,
+  seededRandom,
   validateWord,
 } from '../shared/game'
 import { translate } from '../shared/i18n'
 import { DEFAULT_LANGUAGE, type LanguageCode } from '../shared/languages'
-import type { GamePhase, Player, RoomState, RoundState } from '../shared/types'
+import type {
+  BotPersonality,
+  GamePhase,
+  Player,
+  PowerUpType,
+  RoomSettings,
+  RoomState,
+  RoundState,
+} from '../shared/types'
 
 interface Room {
   code: string
@@ -20,7 +36,8 @@ interface Room {
   players: Map<string, Player>
   round: RoundState | null
   roundNumber: number
-  maxRounds: number
+  settings: RoomSettings
+  daily: boolean
   targetQueue: string[]
   usedWords: Set<string>
   roundTimer: NodeJS.Timeout | null
@@ -32,11 +49,13 @@ interface Room {
 }
 
 export type Broadcast = (code: string, state: RoomState) => void
+export type EmoteBroadcast = (code: string, event: EmoteEvent) => void
 export type WordChecker = (language: LanguageCode, word: string) => boolean
 export type BotWordPicker = (
   language: LanguageCode,
   target: string,
   usedWords: ReadonlySet<string>,
+  minLength?: number,
 ) => string | null
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -45,6 +64,8 @@ const EMPTY_ROOM_TTL_MS = 5 * 60_000
 const MAX_PLAYERS = 12
 const MAX_NAME_LENGTH = 16
 const BOT_FILL_COUNT = 3
+const EXTRA_TIME_MS = 5_000
+const HINT_AFTER_MISSES = 2
 const BOT_NAMES = [
   'Ada',
   'Byte',
@@ -59,6 +80,8 @@ const BOT_NAMES = [
   'Kilo',
   'Luna',
 ] as const
+const BOT_PERSONALITIES: readonly BotPersonality[] = ['speedster', 'scholar', 'steady']
+const POWER_UPS: readonly PowerUpType[] = ['double', 'hint', 'extraTime']
 
 const sanitizeName = (raw: string): string => {
   const trimmed = raw.trim().slice(0, MAX_NAME_LENGTH)
@@ -73,7 +96,17 @@ const makePlayer = (id: string, name: string, isBot = false): Player => ({
   isBot,
   connected: true,
   submitted: false,
+  streak: 0,
+  bestStreak: 0,
+  misses: 0,
+  powerUp: null,
+  powerUpUsed: false,
+  doubleNext: false,
+  spectator: false,
 })
+
+const pickRandom = <T>(items: readonly T[]): T | undefined =>
+  items[Math.floor(Math.random() * items.length)]
 
 export class RoomStore {
   private rooms: Map<string, Room> = new Map()
@@ -81,6 +114,7 @@ export class RoomStore {
   private playerSockets: Map<string, string> = new Map()
   private playerLanguages: Map<string, LanguageCode> = new Map()
   private broadcast: Broadcast
+  private emoteBroadcast?: EmoteBroadcast
   private isWord: WordChecker
   private pickBotWord: BotWordPicker
 
@@ -88,10 +122,12 @@ export class RoomStore {
     broadcast: Broadcast,
     isWord: WordChecker,
     pickBotWord: BotWordPicker = () => null,
+    emoteBroadcast?: EmoteBroadcast,
   ) {
     this.broadcast = broadcast
     this.isWord = isWord
     this.pickBotWord = pickBotWord
+    this.emoteBroadcast = emoteBroadcast
   }
 
   createRoom = (
@@ -99,6 +135,7 @@ export class RoomStore {
     name: string,
     socketId: string,
     language: LanguageCode = DEFAULT_LANGUAGE,
+    daily = false,
   ): ActionResult => {
     this.leaveRoom(playerId)
 
@@ -115,7 +152,8 @@ export class RoomStore {
       players: new Map([[playerId, makePlayer(playerId, name)]]),
       round: null,
       roundNumber: 0,
-      maxRounds: DEFAULT_MAX_ROUNDS,
+      settings: { ...DEFAULT_SETTINGS },
+      daily,
       targetQueue: [],
       usedWords: new Set(),
       roundTimer: null,
@@ -161,10 +199,6 @@ export class RoomStore {
       return { ok: true, code }
     }
 
-    if (room.phase !== 'lobby') {
-      return { ok: false, error: translate(room.language, 'error.inProgress') }
-    }
-
     if (room.players.size >= MAX_PLAYERS) {
       return { ok: false, error: translate(room.language, 'error.roomFull') }
     }
@@ -174,6 +208,42 @@ export class RoomStore {
       this.leaveRoom(playerId)
     }
 
+    if (room.phase === 'playing') {
+      const bot = [...room.players.values()].find((player) => player.isBot)
+      if (bot) {
+        const takeover = makePlayer(playerId, name)
+        takeover.score = bot.score
+        takeover.streak = bot.streak
+        takeover.bestStreak = bot.bestStreak
+        takeover.submitted = bot.submitted
+        room.players.delete(bot.id)
+        room.players.set(playerId, takeover)
+        room.botSkills.delete(bot.id)
+        this.clearBotTimer(room, bot.id)
+        this.playerRooms.delete(bot.id)
+        this.playerSockets.delete(bot.id)
+        this.playerLanguages.delete(bot.id)
+        this.clearEmptyTimer(room)
+        this.playerRooms.set(playerId, code)
+        this.playerSockets.set(playerId, socketId)
+        this.playerLanguages.set(playerId, room.language)
+        this.reassignHost(room)
+        this.sync(room.code)
+        return { ok: true, code }
+      }
+
+      const spectator = makePlayer(playerId, name)
+      spectator.spectator = true
+      room.players.set(playerId, spectator)
+      this.clearEmptyTimer(room)
+      this.playerRooms.set(playerId, code)
+      this.playerSockets.set(playerId, socketId)
+      this.playerLanguages.set(playerId, room.language)
+      this.reassignHost(room)
+      this.sync(room.code)
+      return { ok: true, code }
+    }
+
     room.players.set(playerId, makePlayer(playerId, name))
     this.clearEmptyTimer(room)
     this.playerRooms.set(playerId, code)
@@ -181,6 +251,23 @@ export class RoomStore {
     this.playerLanguages.set(playerId, room.language)
 
     return { ok: true, code }
+  }
+
+  updateSettings = (playerId: string, patch: Partial<RoomSettings>): ActionResult => {
+    const room = this.roomOf(playerId)
+    if (!room) {
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
+    }
+    if (room.hostId !== playerId) {
+      return { ok: false, error: translate(room.language, 'error.hostSettings') }
+    }
+    if (room.phase !== 'lobby') {
+      return { ok: false, error: translate(room.language, 'error.settingsLobby') }
+    }
+
+    room.settings = clampSettings({ ...room.settings, ...patch })
+    this.sync(room.code)
+    return { ok: true }
   }
 
   addBots = (playerId: string, count: number): ActionResult => {
@@ -234,6 +321,26 @@ export class RoomStore {
     return { ok: true }
   }
 
+  sendEmote = (playerId: string, emoji: string): void => {
+    const room = this.roomOf(playerId)
+    const player = room?.players.get(playerId)
+    if (!room || !player) {
+      return
+    }
+
+    const safe = emoji.trim().slice(0, 8)
+    if (!safe) {
+      return
+    }
+
+    this.emoteBroadcast?.(room.code, {
+      playerId,
+      playerName: player.name,
+      emoji: safe,
+      at: Date.now(),
+    })
+  }
+
   sync = (code: string): void => {
     const room = this.rooms.get(code)
     if (room) {
@@ -254,7 +361,7 @@ export class RoomStore {
     }
 
     const hasOtherHumans = [...room.players.values()].some(
-      (player) => player.id !== playerId && !player.isBot && player.connected,
+      (player) => player.id !== playerId && !player.isBot && !player.spectator && player.connected,
     )
     const hasBots = [...room.players.values()].some((player) => player.isBot)
     if (!hasOtherHumans && !hasBots) {
@@ -263,10 +370,22 @@ export class RoomStore {
 
     room.roundNumber = 0
     room.usedWords.clear()
-    room.targetQueue = pickTargets(Math.random, room.maxRounds, room.language)
+    const random = room.daily ? seededRandom(dailySeed()) : Math.random
+    room.targetQueue = pickTargets(
+      random,
+      room.settings.maxRounds,
+      room.language,
+      room.settings.difficulty,
+    )
     room.players.forEach((player) => {
       player.score = 0
       player.submitted = false
+      player.streak = 0
+      player.bestStreak = 0
+      player.misses = 0
+      player.doubleNext = false
+      player.powerUpUsed = false
+      player.powerUp = player.spectator ? null : (pickRandom(POWER_UPS) ?? 'double')
     })
 
     this.startRound(room)
@@ -307,10 +426,78 @@ export class RoomStore {
     room.players.forEach((player) => {
       player.score = 0
       player.submitted = false
+      player.streak = 0
+      player.bestStreak = 0
+      player.misses = 0
+      player.doubleNext = false
+      player.powerUp = null
+      player.powerUpUsed = false
+      player.spectator = false
     })
 
     this.sync(room.code)
     return { ok: true }
+  }
+
+  usePowerUp = (playerId: string, type: PowerUpType): PowerUpResult => {
+    const room = this.roomOf(playerId)
+    if (!room) {
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
+    }
+    if (room.phase !== 'playing' || !room.round) {
+      return { ok: false, error: translate(room.language, 'powerup.wrongPhase') }
+    }
+
+    const player = room.players.get(playerId)
+    if (!player) {
+      return { ok: false, error: translate(room.language, 'error.notInThisRoom') }
+    }
+    if (player.spectator) {
+      return { ok: false, error: translate(room.language, 'powerup.spectator') }
+    }
+    if (player.powerUpUsed || player.powerUp !== type) {
+      return { ok: false, error: translate(room.language, 'powerup.alreadyUsed') }
+    }
+
+    player.powerUpUsed = true
+
+    switch (type) {
+      case 'double':
+        player.doubleNext = true
+        this.sync(room.code)
+        return { ok: true, message: translate(room.language, 'powerup.doubleActive') }
+      case 'extraTime': {
+        const now = Date.now()
+        const remaining = Math.max(0, room.round.endsAt - now)
+        room.round.endsAt = now + remaining + EXTRA_TIME_MS
+        room.round.durationMs += EXTRA_TIME_MS
+        this.clearRoundTimer(room)
+        room.roundTimer = setTimeout(
+          () => this.endRound(room.code),
+          remaining + EXTRA_TIME_MS,
+        )
+        this.sync(room.code)
+        return { ok: true, message: translate(room.language, 'powerup.extraTime') }
+      }
+      case 'hint': {
+        const word = this.pickBotWord(
+          room.language,
+          room.round.target,
+          room.usedWords,
+          room.round.minWordLength,
+        )
+        this.sync(room.code)
+        if (!word) {
+          return { ok: false, error: translate(room.language, 'powerup.unavailable') }
+        }
+        return {
+          ok: true,
+          hint: translate(room.language, 'powerup.hint', { word }),
+        }
+      }
+      default:
+        return { ok: false, error: translate(room.language, 'powerup.unavailable') }
+    }
   }
 
   submit = (playerId: string, rawWord: string): SubmitResult => {
@@ -330,7 +517,16 @@ export class RoomStore {
     if (!player) {
       return { ok: false, error: translate(room.language, 'error.notInThisRoom') }
     }
-    if (player.submitted) {
+    if (player.spectator) {
+      return {
+        ok: false,
+        reason: 'spectating',
+        error: describeReason(room.language, 'spectating'),
+      }
+    }
+
+    const isRush = room.settings.mode === 'rush'
+    if (!isRush && player.submitted) {
       return {
         ok: false,
         reason: 'already-submitted',
@@ -353,24 +549,66 @@ export class RoomStore {
       target: room.round.target,
       usedWords: room.usedWords,
       isDictionaryWord: (word) => this.isWord(room.language, word),
+      minLength: room.round.minWordLength,
     })
 
     if (!validation.valid) {
+      player.misses += 1
+      let hint: string | undefined
+      if (player.misses >= HINT_AFTER_MISSES) {
+        const suggestion = this.pickBotWord(
+          room.language,
+          room.round.target,
+          room.usedWords,
+          room.round.minWordLength,
+        )
+        if (suggestion) {
+          hint = translate(room.language, 'powerup.hint', { word: suggestion })
+        }
+      }
+
       return {
         ok: false,
         reason: validation.reason ?? undefined,
-        error: describeReason(room.language, validation.reason),
+        error: describeReason(room.language, validation.reason, room.round.minWordLength),
+        hint,
       }
     }
 
     const isFirst = room.round.submissions.length === 0
-    const points = scoreWord({
-      wordLength: validation.normalized.length,
-      msLeft,
-      durationMs: room.round.durationMs,
-      isFirst,
-    })
+    const isLongest = room.round.submissions.every(
+      (submission) => submission.word.length <= validation.normalized.length,
+    )
+    const contenders = [...room.players.values()].filter(
+      (candidate) => !candidate.spectator && candidate.connected,
+    )
+    const sorted = [...contenders].sort((a, b) => a.score - b.score)
+    const lowest = sorted[0]
+    const highest = sorted[sorted.length - 1]
+    const isComeback =
+      contenders.length > 1 &&
+      lowest?.id === playerId &&
+      highest !== undefined &&
+      highest.score > lowest.score
 
+    const streak = player.streak + 1
+    const multiplier = player.doubleNext ? 2 : 1
+    const points =
+      scoreWord({
+        wordLength: validation.normalized.length,
+        msLeft,
+        durationMs: room.round.durationMs,
+        isFirst,
+        word: validation.normalized,
+        streak,
+        isLongest,
+        isComeback,
+      }) * multiplier
+
+    player.doubleNext = false
+    player.misses = 0
+    player.streak = streak
+    player.bestStreak = Math.max(player.bestStreak, streak)
     player.submitted = true
     player.score += points
     room.round.submissions.push({
@@ -379,6 +617,8 @@ export class RoomStore {
       word: validation.normalized,
       points,
       at: Date.now(),
+      streak,
+      multiplier,
     })
     if (isFirst) {
       room.round.winnerId = playerId
@@ -395,6 +635,8 @@ export class RoomStore {
         word: validation.normalized,
         points,
         reason: null,
+        streak,
+        multiplier,
       },
     }
   }
@@ -452,10 +694,16 @@ export class RoomStore {
     room.roundNumber += 1
     const target =
       room.targetQueue[room.roundNumber - 1] ??
-      pickTargets(Math.random, 1, room.language)[0] ??
+      pickTargets(
+        Math.random,
+        1,
+        room.language,
+        room.settings.difficulty,
+      )[0] ??
       TARGET_POOLS[room.language][0] ??
       'ar'
     const now = Date.now()
+    const durationMs = roundDurationFor(room.settings, room.roundNumber)
 
     room.players.forEach((player) => {
       player.submitted = false
@@ -465,17 +713,19 @@ export class RoomStore {
       index: room.roundNumber,
       target,
       startedAt: now,
-      endsAt: now + ROUND_DURATION_MS,
-      durationMs: ROUND_DURATION_MS,
+      endsAt: now + durationMs,
+      durationMs,
       submissions: [],
       winnerId: null,
+      mode: room.settings.mode,
+      minWordLength: room.settings.minWordLength,
     }
     room.phase = 'playing'
 
     this.clearRoundTimer(room)
     this.clearBotTimers(room)
     room.botRush = false
-    room.roundTimer = setTimeout(() => this.endRound(room.code), ROUND_DURATION_MS)
+    room.roundTimer = setTimeout(() => this.endRound(room.code), durationMs)
 
     this.sync(room.code)
     this.scheduleBots(room)
@@ -489,7 +739,8 @@ export class RoomStore {
 
     this.clearRoundTimer(room)
     this.clearBotTimers(room)
-    room.phase = room.roundNumber >= room.maxRounds ? 'finished' : 'reveal'
+    room.phase =
+      room.roundNumber >= room.settings.maxRounds ? 'finished' : 'reveal'
     this.sync(code)
   }
 
@@ -498,12 +749,20 @@ export class RoomStore {
       return
     }
 
-    const connected = [...room.players.values()].filter((player) => player.connected)
+    const connected = [...room.players.values()].filter(
+      (player) => player.connected && !player.spectator,
+    )
     if (connected.length === 0) {
       return
     }
 
-    const humansPending = connected.some((player) => !player.isBot && !player.submitted)
+    if (room.settings.mode === 'rush') {
+      return
+    }
+
+    const humansPending = connected.some(
+      (player) => !player.isBot && !player.submitted,
+    )
     if (!humansPending) {
       this.hurryBots(room)
     }
@@ -526,8 +785,13 @@ export class RoomStore {
     for (let index = 0; index < toAdd; index += 1) {
       const id = `bot-${room.code}-${room.nextBotNumber}`
       room.nextBotNumber += 1
-      room.players.set(id, makePlayer(id, this.nextBotName(room), true))
-      room.botSkills.set(id, 0.45 + Math.random() * 0.5)
+      const personality = pickRandom(BOT_PERSONALITIES) ?? 'steady'
+      const player = makePlayer(id, this.nextBotName(room), true)
+      player.personality = personality
+      room.players.set(id, player)
+      const base =
+        personality === 'speedster' ? 0.78 : personality === 'scholar' ? 0.5 : 0.62
+      room.botSkills.set(id, base + Math.random() * 0.2)
       this.playerRooms.set(id, room.code)
       added += 1
     }
@@ -563,7 +827,13 @@ export class RoomStore {
       }
 
       const skill = room.botSkills.get(player.id) ?? 0.6
-      const baseDelay = 2500 + (1 - skill) * 11_000
+      const speedFactor =
+        player.personality === 'speedster'
+          ? 0.55
+          : player.personality === 'scholar'
+            ? 1.25
+            : 1
+      const baseDelay = (2500 + (1 - skill) * 11_000) * speedFactor
       const delay = Math.min(latestDelay, Math.round(baseDelay + Math.random() * 3000))
 
       this.clearBotTimer(room, player.id)
@@ -599,17 +869,42 @@ export class RoomStore {
     }
   }
 
+  private scheduleBotPlay = (room: Room, botId: string, delay: number): void => {
+    if (room.phase !== 'playing' || !room.round) {
+      return
+    }
+
+    const remaining = room.round.endsAt - Date.now()
+    if (remaining <= 700) {
+      return
+    }
+
+    const wait = Math.max(250, Math.min(delay, remaining - 500))
+    this.clearBotTimer(room, botId)
+    const timer = setTimeout(() => {
+      room.botTimers.delete(botId)
+      this.botPlay(room, botId)
+    }, wait)
+    room.botTimers.set(botId, timer)
+  }
+
   private botPlay = (room: Room, botId: string): void => {
     if (room.phase !== 'playing' || !room.round) {
       return
     }
 
     const bot = room.players.get(botId)
-    if (!bot?.isBot || bot.submitted) {
+    const isRush = room.settings.mode === 'rush'
+    if (!bot?.isBot || (bot.submitted && !isRush)) {
       return
     }
 
-    const word = this.pickBotWord(room.language, room.round.target, room.usedWords)
+    const word = this.pickBotWord(
+      room.language,
+      room.round.target,
+      room.usedWords,
+      room.round.minWordLength,
+    )
     if (!word) {
       bot.submitted = true
       this.sync(room.code)
@@ -619,20 +914,38 @@ export class RoomStore {
 
     const result = this.submit(botId, word)
     if (!result.ok) {
+      if (isRush && result.reason === 'duplicate') {
+        this.scheduleBotPlay(room, botId, 900 + Math.random() * 1600)
+        return
+      }
+
       bot.submitted = true
       this.sync(room.code)
       this.maybeEndRound(room)
+      return
+    }
+
+    if (isRush && room.phase === 'playing') {
+      const skill = room.botSkills.get(bot.id) ?? 0.6
+      const speedFactor =
+        bot.personality === 'speedster'
+          ? 0.55
+          : bot.personality === 'scholar'
+            ? 1.25
+            : 1
+      const baseDelay = (1500 + (1 - skill) * 3500) * speedFactor
+      this.scheduleBotPlay(room, bot.id, Math.round(baseDelay + Math.random() * 2200))
     }
   }
 
   private reassignHost = (room: Room): void => {
     const host = room.players.get(room.hostId)
-    if (host?.connected && !host.isBot) {
+    if (host?.connected && !host.isBot && !host.spectator) {
       return
     }
 
     const next = [...room.players.values()].find(
-      (player) => player.connected && !player.isBot,
+      (player) => player.connected && !player.isBot && !player.spectator,
     )
     if (next) {
       room.hostId = next.id
@@ -726,7 +1039,9 @@ export class RoomStore {
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)),
     round: room.round,
     roundNumber: room.roundNumber,
-    maxRounds: room.maxRounds,
+    maxRounds: room.settings.maxRounds,
+    settings: room.settings,
+    daily: room.daily,
     serverTime: Date.now(),
   })
 }
