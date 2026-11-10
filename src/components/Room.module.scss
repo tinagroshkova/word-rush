@@ -1,0 +1,58 @@
+.room {
+  max-width: 1180px;
+  margin: 0 auto;
+  animation: fade-in 0.35s ease both;
+}
+
+.roomHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: clamp(18px, 3vw, 30px);
+}
+
+.roomIdentity {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.roomLogo {
+  font-size: 1.5rem;
+}
+
+.roomCode {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.roomCode strong {
+  color: var(--text);
+  letter-spacing: 0.16em;
+}
+
+.roomActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.banner {
+  margin-bottom: 18px;
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.12);
+  color: #ffe3a3;
+  font-weight: 600;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .roomHeader {
+    align-items: flex-start;
+  }
+}

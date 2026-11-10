@@ -1,9 +1,12 @@
 import type { SubmitResult } from '../../shared/events'
 import type { RoomState } from '../../shared/types'
+import ui from '../styles/ui.module.scss'
 import type { ConnectionStatus } from '../connection'
+import { GameOver } from './GameOver'
 import { Lobby } from './Lobby'
 import { PlayingRound } from './PlayingRound'
 import { Results } from './Results'
+import styles from './Room.module.scss'
 
 interface RoomProps {
   room: RoomState
@@ -15,6 +18,9 @@ interface RoomProps {
   onStart: () => void
   onNext: () => void
   onRestart: () => void
+  onAddBot: () => void
+  onRemoveBot: (botId: string) => void
+  onShowRules: () => void
   onSubmit: (word: string) => Promise<SubmitResult>
 }
 
@@ -28,34 +34,46 @@ export const Room = ({
   onStart,
   onNext,
   onRestart,
+  onAddBot,
+  onRemoveBot,
+  onShowRules,
   onSubmit,
 }: RoomProps) => {
   const isHost = room.hostId === playerId
+  const statusClass =
+    status === 'connected'
+      ? ui.statusConnected
+      : status === 'connecting'
+        ? ui.statusConnecting
+        : ui.statusDisconnected
 
   return (
-    <div className="room">
-      <header className="room__header">
-        <div className="room__identity">
-          <span className="room__logo">
+    <div className={styles.room}>
+      <header className={styles.roomHeader}>
+        <div className={styles.roomIdentity}>
+          <span className={`${ui.brand} ${styles.roomLogo}`}>
             Word<span>Rush</span>
           </span>
-          <span className="room__code">
+          <span className={styles.roomCode}>
             Room <strong>{room.code}</strong>
           </span>
         </div>
-        <div className="room__actions">
-          <span className={`status status--${status}`}>
-            <span className="status__dot" />
+        <div className={styles.roomActions}>
+          <span className={`${ui.status} ${statusClass}`}>
+            <span className={ui.statusDot} />
             {status === 'connected' ? 'live' : status}
           </span>
-          <button className="button button--ghost" onClick={onLeave}>
+          <button className={`${ui.button} ${ui.buttonGhost}`} onClick={onShowRules}>
+            Rules
+          </button>
+          <button className={`${ui.button} ${ui.buttonGhost}`} onClick={onLeave}>
             Leave
           </button>
         </div>
       </header>
 
       {status !== 'connected' && (
-        <div className="banner">Reconnecting to the room...</div>
+        <div className={styles.banner}>Reconnecting to the room...</div>
       )}
 
       {room.phase === 'lobby' && (
@@ -65,6 +83,8 @@ export const Room = ({
           isHost={isHost}
           busy={busy}
           onStart={onStart}
+          onAddBot={onAddBot}
+          onRemoveBot={onRemoveBot}
         />
       )}
 
@@ -77,13 +97,22 @@ export const Room = ({
         />
       )}
 
-      {(room.phase === 'reveal' || room.phase === 'finished') && (
+      {room.phase === 'reveal' && (
         <Results
           room={room}
           playerId={playerId}
           isHost={isHost}
           busy={busy}
           onNext={onNext}
+        />
+      )}
+
+      {room.phase === 'finished' && (
+        <GameOver
+          room={room}
+          playerId={playerId}
+          isHost={isHost}
+          busy={busy}
           onRestart={onRestart}
         />
       )}

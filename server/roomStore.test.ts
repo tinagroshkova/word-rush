@@ -10,9 +10,15 @@ const wordFor = (target: string): string =>
 
 const setup = () => {
   let latest: RoomState | null = null
-  const store = new RoomStore((_code, state) => {
-    latest = state
-  }, isWord)
+  const pickBotWord = (target: string, usedWords: ReadonlySet<string>): string =>
+    `${target}${'z'.repeat(2 + usedWords.size)}`
+  const store = new RoomStore(
+    (_code, state) => {
+      latest = state
+    },
+    isWord,
+    pickBotWord,
+  )
 
   const state = (): RoomState => {
     if (!latest) {
@@ -171,5 +177,136 @@ describe('RoomStore', () => {
     store.leaveRoom('p1')
     expect(state().hostId).toBe('p2')
     expect(state().players).toHaveLength(1)
+  })
+
+  it('lets the host add and remove bots in the lobby', () => {
+    const { store, state } = createLobby()
+
+    expect(store.addBots('p2', 1).ok).toBe(false)
+    expect(store.addBots('p1', 2).ok).toBe(true)
+    expect(state().players.filter((player) => player.isBot)).toHaveLength(2)
+
+    const bot = state().players.find((player) => player.isBot)
+    expect(bot).toBeDefined()
+
+    expect(store.removeBot('p2', bot?.id ?? '').ok).toBe(false)
+    expect(store.removeBot('p1', bot?.id ?? '').ok).toBe(true)
+    expect(state().players.filter((player) => player.isBot)).toHaveLength(1)
+    expect(store.removeBot('p1', 'p1').ok).toBe(false)
+  })
+
+  it('auto-fills a solo lobby with bots when the game starts', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    store.sync(code)
+    expect(state().players).toHaveLength(1)
+
+    expect(store.startGame('p1').ok).toBe(true)
+    expect(state().phase).toBe('playing')
+    expect(state().players).toHaveLength(4)
+    expect(state().players.filter((player) => player.isBot)).toHaveLength(3)
+  })
+
+  it('lets bots submit words during a round', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    expect(store.addBots('p1', 2).ok).toBe(true)
+    store.sync(code)
+    expect(store.startGame('p1').ok).toBe(true)
+
+    vi.advanceTimersByTime(ROUND_DURATION_MS)
+
+    const final = state()
+    expect(final.phase).toBe('reveal')
+
+    const botIds = new Set(
+      final.players.filter((player) => player.isBot).map((player) => player.id),
+    )
+    const botSubmissions = final.round?.submissions.filter((submission) =>
+      botIds.has(submission.playerId),
+    )
+
+    expect(botSubmissions).toHaveLength(2)
+    expect(final.players.filter((player) => player.isBot).every((player) => player.score > 0)).toBe(
+      true,
+    )
+  })
+
+  it('hurries bots once every human has submitted', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    expect(store.addBots('p1', 2).ok).toBe(true)
+    store.sync(code)
+    expect(store.startGame('p1').ok).toBe(true)
+
+    const target = state().round?.target ?? ''
+    expect(store.submit('p1', wordFor(target)).ok).toBe(true)
+
+    vi.advanceTimersByTime(3500)
+
+    expect(state().phase).toBe('reveal')
+    expect(state().round?.submissions).toHaveLength(3)
+  })
+
+  it('never makes a bot the host', () => {
+    const { store, state } = createLobby()
+
+    expect(store.addBots('p1', 1).ok).toBe(true)
+    store.leaveRoom('p1')
+
+    expect(state().hostId).toBe('p2')
+    expect(state().players.find((player) => player.id === state().hostId)?.isBot).toBe(false)
+  })
+
+  it('deletes a room once only bots are left', () => {
+    const { store } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    expect(store.addBots('p1', 2).ok).toBe(true)
+    store.leaveRoom('p1')
+
+    expect(store.joinRoom('p2', 'Bob', code, 's2').ok).toBe(false)
+  })
+
+  it('cleans up bot-filled rooms when every human disconnects', () => {
+    const { store, state } = setup()
+    const created = store.createRoom('p1', 'Alice', 's1')
+    const code = created.code
+
+    if (!code) {
+      throw new Error('Room was not created')
+    }
+
+    expect(store.addBots('p1', 2).ok).toBe(true)
+    store.sync(code)
+    store.handleDisconnect('p1', 's1')
+
+    expect(state().players.find((player) => player.id === 'p1')?.connected).toBe(false)
+
+    vi.advanceTimersByTime(5 * 60_000)
+    expect(store.joinRoom('p2', 'Bob', code, 's2').ok).toBe(false)
   })
 })

@@ -9,7 +9,7 @@ import type {
   ServerToClientEvents,
   SubmitResult,
 } from '../shared/events'
-import { isDictionaryWord } from './dictionary'
+import { isDictionaryWord, pickBotWord } from './dictionary'
 import { RoomStore } from './roomStore'
 
 const PORT = Number(process.env.PORT ?? 3001)
@@ -83,7 +83,7 @@ const io = new Server<
 
 const store = new RoomStore((code, state) => {
   io.to(code).emit('state:update', state)
-}, isDictionaryWord)
+}, isDictionaryWord, pickBotWord)
 
 const notInRoom: ActionResult = { ok: false, error: 'You are not in a room' }
 
@@ -135,6 +135,14 @@ io.on('connection', (socket) => {
 
     socket.data.code = undefined
     ack({ ok: true })
+  })
+
+  socket.on('room:addBots', ({ count }, ack) => {
+    ack(socket.data.playerId ? store.addBots(socket.data.playerId, count) : notInRoom)
+  })
+
+  socket.on('room:removeBot', ({ botId }, ack) => {
+    ack(socket.data.playerId ? store.removeBot(socket.data.playerId, botId) : notInRoom)
   })
 
   socket.on('game:start', (ack) => {

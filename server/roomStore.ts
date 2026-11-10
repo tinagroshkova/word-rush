@@ -21,26 +21,47 @@ interface Room {
   usedWords: Set<string>
   roundTimer: NodeJS.Timeout | null
   emptyTimer: NodeJS.Timeout | null
+  botSkills: Map<string, number>
+  botTimers: Map<string, NodeJS.Timeout>
+  botRush: boolean
+  nextBotNumber: number
 }
 
 export type Broadcast = (code: string, state: RoomState) => void
+export type BotWordPicker = (target: string, usedWords: ReadonlySet<string>) => string | null
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE_LENGTH = 4
 const EMPTY_ROOM_TTL_MS = 5 * 60_000
 const MAX_PLAYERS = 12
 const MAX_NAME_LENGTH = 16
+const BOT_FILL_COUNT = 3
+const BOT_NAMES = [
+  'Ada',
+  'Byte',
+  'Cipher',
+  'Dash',
+  'Echo',
+  'Fable',
+  'Glitch',
+  'Hex',
+  'Iris',
+  'Jolt',
+  'Kilo',
+  'Luna',
+] as const
 
 const sanitizeName = (raw: string): string => {
   const trimmed = raw.trim().slice(0, MAX_NAME_LENGTH)
   return trimmed.length > 0 ? trimmed : 'Player'
 }
 
-const makePlayer = (id: string, name: string): Player => ({
+const makePlayer = (id: string, name: string, isBot = false): Player => ({
   id,
   name: sanitizeName(name),
   score: 0,
   isHost: false,
+  isBot,
   connected: true,
   submitted: false,
 })
@@ -51,10 +72,16 @@ export class RoomStore {
   private playerSockets: Map<string, string> = new Map()
   private broadcast: Broadcast
   private isWord: (word: string) => boolean
+  private pickBotWord: BotWordPicker
 
-  constructor(broadcast: Broadcast, isWord: (word: string) => boolean) {
+  constructor(
+    broadcast: Broadcast,
+    isWord: (word: string) => boolean,
+    pickBotWord: BotWordPicker = () => null,
+  ) {
     this.broadcast = broadcast
     this.isWord = isWord
+    this.pickBotWord = pickBotWord
   }
 
   createRoom = (playerId: string, name: string, socketId: string): ActionResult => {
@@ -77,6 +104,10 @@ export class RoomStore {
       usedWords: new Set(),
       roundTimer: null,
       emptyTimer: null,
+      botSkills: new Map(),
+      botTimers: new Map(),
+      botRush: false,
+      nextBotNumber: 1,
     }
 
     this.rooms.set(code, room)
@@ -127,6 +158,56 @@ export class RoomStore {
     return { ok: true, code }
   }
 
+  addBots = (playerId: string, count: number): ActionResult => {
+    const room = this.roomOf(playerId)
+    if (!room) {
+      return { ok: false, error: 'You are not in a room' }
+    }
+    if (room.hostId !== playerId) {
+      return { ok: false, error: 'Only the host can add bots' }
+    }
+    if (room.phase !== 'lobby') {
+      return { ok: false, error: 'Bots can only be added in the lobby' }
+    }
+    if (room.players.size >= MAX_PLAYERS) {
+      return { ok: false, error: 'That room is full' }
+    }
+
+    const added = this.addBotsToRoom(room, count)
+    if (added === 0) {
+      return { ok: false, error: 'Could not add a bot' }
+    }
+
+    this.sync(room.code)
+    return { ok: true }
+  }
+
+  removeBot = (playerId: string, botId: string): ActionResult => {
+    const room = this.roomOf(playerId)
+    if (!room) {
+      return { ok: false, error: 'You are not in a room' }
+    }
+    if (room.hostId !== playerId) {
+      return { ok: false, error: 'Only the host can remove bots' }
+    }
+    if (room.phase !== 'lobby') {
+      return { ok: false, error: 'Bots can only be removed in the lobby' }
+    }
+
+    const bot = room.players.get(botId)
+    if (!bot?.isBot) {
+      return { ok: false, error: 'That is not a bot in this room' }
+    }
+
+    room.players.delete(botId)
+    room.botSkills.delete(botId)
+    this.playerRooms.delete(botId)
+    this.playerSockets.delete(botId)
+    this.clearBotTimer(room, botId)
+    this.sync(room.code)
+    return { ok: true }
+  }
+
   sync = (code: string): void => {
     const room = this.rooms.get(code)
     if (room) {
@@ -144,6 +225,14 @@ export class RoomStore {
     }
     if (room.phase !== 'lobby') {
       return { ok: false, error: 'The game already started' }
+    }
+
+    const hasOtherHumans = [...room.players.values()].some(
+      (player) => player.id !== playerId && !player.isBot && player.connected,
+    )
+    const hasBots = [...room.players.values()].some((player) => player.isBot)
+    if (!hasOtherHumans && !hasBots) {
+      this.addBotsToRoom(room, BOT_FILL_COUNT)
     }
 
     room.roundNumber = 0
@@ -283,7 +372,8 @@ export class RoomStore {
       room.players.delete(playerId)
       this.reassignHost(room)
 
-      if (room.players.size === 0) {
+      const hasHumans = [...room.players.values()].some((player) => !player.isBot)
+      if (!hasHumans) {
         this.deleteRoom(room.code)
       } else {
         this.sync(room.code)
@@ -340,9 +430,12 @@ export class RoomStore {
     room.phase = 'playing'
 
     this.clearRoundTimer(room)
+    this.clearBotTimers(room)
+    room.botRush = false
     room.roundTimer = setTimeout(() => this.endRound(room.code), ROUND_DURATION_MS)
 
     this.sync(room.code)
+    this.scheduleBots(room)
   }
 
   private endRound = (code: string): void => {
@@ -352,6 +445,7 @@ export class RoomStore {
     }
 
     this.clearRoundTimer(room)
+    this.clearBotTimers(room)
     room.phase = room.roundNumber >= room.maxRounds ? 'finished' : 'reveal'
     this.sync(code)
   }
@@ -366,26 +460,146 @@ export class RoomStore {
       return
     }
 
+    const humansPending = connected.some((player) => !player.isBot && !player.submitted)
+    if (!humansPending) {
+      this.hurryBots(room)
+    }
+
     if (connected.every((player) => player.submitted)) {
       this.endRound(room.code)
     }
   }
 
-  private reassignHost = (room: Room): void => {
-    const host = room.players.get(room.hostId)
-    if (host?.connected) {
+  private addBotsToRoom = (room: Room, count: number): number => {
+    const requested = Math.floor(count)
+    if (!Number.isFinite(requested) || requested <= 0) {
+      return 0
+    }
+
+    const available = MAX_PLAYERS - room.players.size
+    const toAdd = Math.min(requested, available)
+    let added = 0
+
+    for (let index = 0; index < toAdd; index += 1) {
+      const id = `bot-${room.code}-${room.nextBotNumber}`
+      room.nextBotNumber += 1
+      room.players.set(id, makePlayer(id, this.nextBotName(room), true))
+      room.botSkills.set(id, 0.45 + Math.random() * 0.5)
+      this.playerRooms.set(id, room.code)
+      added += 1
+    }
+
+    return added
+  }
+
+  private nextBotName = (room: Room): string => {
+    const used = new Set([...room.players.values()].map((player) => player.name))
+    const name = BOT_NAMES.find((candidate) => !used.has(candidate))
+    if (name) {
+      return name
+    }
+
+    let suffix = 1
+    while (used.has(`Bot ${suffix}`)) {
+      suffix += 1
+    }
+    return `Bot ${suffix}`
+  }
+
+  private scheduleBots = (room: Room): void => {
+    if (!room.round) {
       return
     }
 
-    const next = [...room.players.values()].find((player) => player.connected)
+    const now = Date.now()
+    const latestDelay = Math.max(2000, room.round.endsAt - now - 750)
+
+    for (const player of room.players.values()) {
+      if (!player.isBot || !player.connected) {
+        continue
+      }
+
+      const skill = room.botSkills.get(player.id) ?? 0.6
+      const baseDelay = 2500 + (1 - skill) * 11_000
+      const delay = Math.min(latestDelay, Math.round(baseDelay + Math.random() * 3000))
+
+      this.clearBotTimer(room, player.id)
+      const timer = setTimeout(() => {
+        room.botTimers.delete(player.id)
+        this.botPlay(room, player.id)
+      }, delay)
+      room.botTimers.set(player.id, timer)
+    }
+  }
+
+  private hurryBots = (room: Room): void => {
+    if (room.botRush) {
+      return
+    }
+
+    const pending = [...room.players.values()].filter(
+      (player) => player.isBot && player.connected && !player.submitted,
+    )
+    if (pending.length === 0) {
+      return
+    }
+
+    room.botRush = true
+    for (const bot of pending) {
+      this.clearBotTimer(room, bot.id)
+      const delay = 800 + Math.random() * 2200
+      const timer = setTimeout(() => {
+        room.botTimers.delete(bot.id)
+        this.botPlay(room, bot.id)
+      }, delay)
+      room.botTimers.set(bot.id, timer)
+    }
+  }
+
+  private botPlay = (room: Room, botId: string): void => {    if (room.phase !== 'playing' || !room.round) {
+      return
+    }
+
+    const bot = room.players.get(botId)
+    if (!bot?.isBot || bot.submitted) {
+      return
+    }
+
+    const word = this.pickBotWord(room.round.target, room.usedWords)
+    if (!word) {
+      bot.submitted = true
+      this.sync(room.code)
+      this.maybeEndRound(room)
+      return
+    }
+
+    const result = this.submit(botId, word)
+    if (!result.ok) {
+      bot.submitted = true
+      this.sync(room.code)
+      this.maybeEndRound(room)
+    }
+  }
+
+  private reassignHost = (room: Room): void => {
+    const host = room.players.get(room.hostId)
+    if (host?.connected && !host.isBot) {
+      return
+    }
+
+    const next = [...room.players.values()].find(
+      (player) => player.connected && !player.isBot,
+    )
     if (next) {
       room.hostId = next.id
     }
   }
 
   private scheduleEmptyCleanup = (room: Room): void => {
-    const anyConnected = [...room.players.values()].some((player) => player.connected)
-    if (anyConnected) {
+    const anyConnectedHuman = [...room.players.values()].some(
+      (player) => player.connected && !player.isBot,
+    )
+    if (anyConnectedHuman) {
       this.clearEmptyTimer(room)
       return
     }
@@ -405,6 +619,7 @@ export class RoomStore {
 
     this.clearRoundTimer(room)
     this.clearEmptyTimer(room)
+    this.clearBotTimers(room)
     room.players.forEach((_player, id) => {
       this.playerRooms.delete(id)
       this.playerSockets.delete(id)
@@ -424,6 +639,19 @@ export class RoomStore {
       clearTimeout(room.emptyTimer)
       room.emptyTimer = null
     }
+  }
+
+  private clearBotTimer = (room: Room, botId: string): void => {
+    const timer = room.botTimers.get(botId)
+    if (timer) {
+      clearTimeout(timer)
+      room.botTimers.delete(botId)
+    }
+  }
+
+  private clearBotTimers = (room: Room): void => {
+    room.botTimers.forEach((timer) => clearTimeout(timer))
+    room.botTimers.clear()
   }
 
   private roomOf = (playerId: string): Room | undefined => {

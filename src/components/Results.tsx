@@ -1,5 +1,7 @@
 import type { RoomState } from '../../shared/types'
+import ui from '../styles/ui.module.scss'
 import { PlayerList } from './PlayerList'
+import styles from './Results.module.scss'
 
 interface ResultsProps {
   room: RoomState
@@ -7,64 +9,48 @@ interface ResultsProps {
   isHost: boolean
   busy: boolean
   onNext: () => void
-  onRestart: () => void
 }
 
-export const Results = ({
-  room,
-  playerId,
-  isHost,
-  busy,
-  onNext,
-  onRestart,
-}: ResultsProps) => {
-  const finished = room.phase === 'finished'
+export const Results = ({ room, playerId, isHost, busy, onNext }: ResultsProps) => {
   const round = room.round
   const submissions = round ? [...round.submissions].sort((a, b) => b.points - a.points) : []
 
-  const top = room.players[0]
-  const tied = room.players.length > 1 && room.players[1]?.score === top?.score
-  const champion = finished && top ? (tied ? 'It is a tie!' : `${top.name} wins!`) : null
-
   return (
-    <main className="layout layout--results">
-      <section className="card card--wide results">
-        <div className="card__head">
+    <main className={`${ui.layout} ${ui.layoutResults}`}>
+      <section className={`${ui.card} ${ui.cardWide} ${ui.results}`}>
+        <div className={ui.cardHead}>
           <div>
-            <p className="eyebrow">
-              {finished
-                ? 'Final scores'
-                : `Round ${round?.index ?? room.roundNumber} of ${room.maxRounds}`}
+            <p className={ui.eyebrow}>
+              Round {round?.index ?? room.roundNumber} of {room.maxRounds}
             </p>
-            <h2>{finished ? 'Game over' : 'Round complete'}</h2>
-            {champion && <p className="champion">{champion}</p>}
+            <h2>Round complete</h2>
           </div>
           {round && (
-            <div className="target target--small">
-              <p className="target__label">Target</p>
-              <p className="target__letters">{round.target.toUpperCase()}</p>
+            <div className={`${ui.target} ${ui.targetSmall}`}>
+              <p className={ui.targetLabel}>Target</p>
+              <p className={ui.targetLetters}>{round.target.toUpperCase()}</p>
             </div>
           )}
         </div>
 
-        <div className="results__grid">
+        <div className={styles.resultsGrid}>
           <div>
-            <h3>{finished ? 'Final round words' : 'Round words'}</h3>
+            <h3>Round words</h3>
             {submissions.length === 0 ? (
-              <p className="muted">Nobody found a word this round.</p>
+              <p className={ui.muted}>Nobody found a word this round.</p>
             ) : (
-              <ul className="feed__list">
+              <ul className={ui.feedList}>
                 {submissions.map((submission, index) => (
                   <li
                     key={`${submission.playerId}-${submission.at}`}
-                    className={`feed__item ${index === 0 ? 'is-winner' : ''}`}
+                    className={`${ui.feedItem} ${index === 0 ? ui.feedWinner : ''}`}
                   >
-                    <span className="feed__word">{submission.word}</span>
-                    <span className="feed__player">
+                    <span className={ui.feedWord}>{submission.word}</span>
+                    <span className={ui.feedPlayer}>
                       {submission.playerName}
                       {index === 0 ? ' · first blood' : ''}
                     </span>
-                    <span className="feed__points">+{submission.points}</span>
+                    <span className={ui.feedPoints}>+{submission.points}</span>
                   </li>
                 ))}
               </ul>
@@ -80,21 +66,15 @@ export const Results = ({
         </div>
 
         {isHost ? (
-          finished ? (
-            <button className="button button--primary" onClick={onRestart} disabled={busy}>
-              {busy ? 'Restarting...' : 'Play again'}
-            </button>
-          ) : (
-            <button className="button button--primary" onClick={onNext} disabled={busy}>
-              {busy ? 'Starting...' : 'Next round'}
-            </button>
-          )
+          <button
+            className={`${ui.button} ${ui.buttonPrimary} ${styles.nextButton}`}
+            onClick={onNext}
+            disabled={busy}
+          >
+            {busy ? 'Starting...' : 'Next round'}
+          </button>
         ) : (
-          <p className="waiting">
-            {finished
-              ? 'Waiting for the host to start a rematch...'
-              : 'Waiting for the host to continue...'}
-          </p>
+          <p className={ui.waiting}>Waiting for the host to continue...</p>
         )}
       </section>
     </main>

@@ -2,8 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react'
 import type { SubmitResult } from '../../shared/events'
 import { MAX_WORD_LENGTH, MIN_WORD_LENGTH } from '../../shared/game'
 import type { RoomState } from '../../shared/types'
+import ui from '../styles/ui.module.scss'
 import { Countdown } from './Countdown'
 import { PlayerList } from './PlayerList'
+import styles from './PlayingRound.module.scss'
 
 interface PlayingRoundProps {
   room: RoomState
@@ -69,10 +71,10 @@ export const PlayingRound = ({
   }
 
   return (
-    <main className="layout layout--game">
-      <section className="card card--wide game">
-        <div className="game__top">
-          <span className="pill">
+    <main className={`${ui.layout} ${ui.layoutGame}`}>
+      <section className={`${ui.card} ${ui.cardWide} ${styles.game}`}>
+        <div className={styles.gameTop}>
+          <span className={ui.pill}>
             Round {round.index} / {room.maxRounds}
           </span>
           <Countdown
@@ -82,20 +84,20 @@ export const PlayingRound = ({
           />
         </div>
 
-        <div className="target">
-          <p className="target__label">Your word must contain</p>
-          <p className="target__letters">{round.target.toUpperCase()}</p>
+        <div className={ui.target}>
+          <p className={ui.targetLabel}>Your word must contain</p>
+          <p className={ui.targetLetters}>{round.target.toUpperCase()}</p>
         </div>
 
         {locked ? (
-          <div className="locked">
-            <p className="locked__title">Locked in</p>
-            <p className="muted">Nice. Wait for the round to end to see everyone&apos;s words.</p>
+          <div className={styles.locked}>
+            <p className={styles.lockedTitle}>Locked in</p>
+            <p className={ui.muted}>Nice. Wait for the round to end to see everyone&apos;s words.</p>
           </div>
         ) : (
-          <form className="word-form" onSubmit={handleSubmit}>
-            <label className="field">
-              <span className="field__label">Your word</span>
+          <form className={styles.wordForm} onSubmit={handleSubmit}>
+            <label className={`${ui.field} ${styles.wordField}`}>
+              <span className={ui.fieldLabel}>Your word</span>
               <input
                 value={word}
                 onChange={(event) => setWord(event.target.value.toLowerCase())}
@@ -109,7 +111,7 @@ export const PlayingRound = ({
               />
             </label>
             <button
-              className="button button--primary"
+              className={`${ui.button} ${ui.buttonPrimary}`}
               type="submit"
               disabled={submitting || word.trim().length === 0}
             >
@@ -119,25 +121,30 @@ export const PlayingRound = ({
         )}
 
         {feedback && (
-          <p className={`feedback feedback--${feedback.tone}`} role="status">
+          <p
+            className={`${styles.feedback} ${
+              feedback.tone === 'ok' ? styles.feedbackOk : styles.feedbackBad
+            }`}
+            role="status"
+          >
             {feedback.text}
           </p>
         )}
 
-        <div className="feed">
+        <div className={ui.feed}>
           <h3>Words in play</h3>
           {submissions.length === 0 ? (
-            <p className="muted">No words yet. Be the first.</p>
+            <p className={ui.muted}>No words yet. Be the first.</p>
           ) : (
-            <ul className="feed__list">
+            <ul className={ui.feedList}>
               {submissions.map((submission, index) => (
-                <li key={`${submission.playerId}-${submission.at}`} className="feed__item">
-                  <span className="feed__word">{submission.word}</span>
-                  <span className="feed__player">
+                <li key={`${submission.playerId}-${submission.at}`} className={ui.feedItem}>
+                  <span className={ui.feedWord}>{submission.word}</span>
+                  <span className={ui.feedPlayer}>
                     {submission.playerName}
                     {index === 0 ? ' · first' : ''}
                   </span>
-                  <span className="feed__points">+{submission.points}</span>
+                  <span className={ui.feedPoints}>+{submission.points}</span>
                 </li>
               ))}
             </ul>

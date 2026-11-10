@@ -14,6 +14,7 @@ export interface Player {
   name: string
   score: number
   isHost: boolean
+  isBot: boolean
   connected: boolean
   submitted: boolean
 }

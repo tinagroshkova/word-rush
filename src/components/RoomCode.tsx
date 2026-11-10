@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import styles from './RoomCode.module.scss'
 
 interface RoomCodeProps {
   code: string
@@ -26,10 +27,10 @@ export const RoomCode = ({ code }: RoomCodeProps) => {
   }
 
   return (
-    <button className="room-code" onClick={() => void copy()} title="Copy room code">
-      <span className="room-code__label">Room</span>
-      <span className="room-code__value">{code}</span>
-      <span className="room-code__hint">{copied ? 'copied' : 'copy'}</span>
+    <button className={styles.roomCode} onClick={() => void copy()} title="Copy room code">
+      <span className={styles.roomCodeLabel}>Room</span>
+      <span className={styles.roomCodeValue}>{code}</span>
+      <span className={styles.roomCodeHint}>{copied ? 'copied' : 'copy'}</span>
     </button>
   )
 }

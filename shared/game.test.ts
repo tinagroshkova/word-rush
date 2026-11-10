@@ -3,6 +3,7 @@ import {
   FIRST_BLOOD_BONUS,
   MAX_WORD_LENGTH,
   MIN_WORD_LENGTH,
+  TARGET_POOL,
   pickTargets,
   scoreWord,
   validateWord,
@@ -88,6 +89,12 @@ describe('scoreWord', () => {
 })
 
 describe('pickTargets', () => {
+  it('has a large, unique set of lowercase targets', () => {
+    expect(TARGET_POOL.length).toBeGreaterThanOrEqual(100)
+    expect(new Set(TARGET_POOL).size).toBe(TARGET_POOL.length)
+    expect(TARGET_POOL.every((target) => /^[a-z]{2,4}$/.test(target))).toBe(true)
+  })
+
   it('returns the requested number of unique targets', () => {
     const targets = pickTargets(() => 0, 5)
     expect(targets).toHaveLength(5)

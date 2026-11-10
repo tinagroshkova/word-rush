@@ -1,0 +1,19 @@
+.app {
+  min-height: 100vh;
+  padding: clamp(18px, 3vw, 40px);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  padding: 13px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: rgba(18, 21, 39, 0.94);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+  animation: toast-in 0.25s ease both;
+  z-index: 50;
+}

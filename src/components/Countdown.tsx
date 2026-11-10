@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import styles from './Countdown.module.scss'
 
 interface CountdownProps {
   endsAt: number
@@ -20,10 +21,10 @@ export const Countdown = ({ endsAt, serverOffset, durationMs }: CountdownProps) 
   const urgent = remaining <= 5000
 
   return (
-    <div className={`countdown ${urgent ? 'countdown--urgent' : ''}`}>
-      <span className="countdown__value">{seconds}s</span>
-      <span className="countdown__track">
-        <span className="countdown__fill" style={{ width: `${ratio * 100}%` }} />
+    <div className={`${styles.countdown} ${urgent ? styles.urgent : ''}`}>
+      <span className={styles.countdownValue}>{seconds}s</span>
+      <span className={styles.countdownTrack}>
+        <span className={styles.countdownFill} style={{ width: `${ratio * 100}%` }} />
       </span>
     </div>
   )
