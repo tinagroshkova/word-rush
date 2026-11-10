@@ -1,8 +1,10 @@
+@use '../styles/animations' as anim;
+
 .page {
   max-width: 980px;
   margin: 0 auto;
   padding: clamp(8px, 2vw, 24px) 0 48px;
-  animation: fade-in 0.35s ease both;
+  @include anim.fade-in(0.35s, ease, both);
 }
 
 .top {

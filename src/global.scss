@@ -1,3 +1,14 @@
+@use './styles/animations' as anim;
+
+// Emit the global @keyframes exactly once (see styles/animations.scss)
+@include anim.animations-keyframes;
+
+@property --card-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
 :root {
   color-scheme: dark;
   --bg: #0b0d17;
@@ -63,6 +74,11 @@
   --primary-gradient-hover: linear-gradient(120deg, #8b6dff, #ab8bff 55%, #4fe3f7);
   --primary-shadow: 0 14px 34px rgba(124, 92, 255, 0.32);
   --primary-shadow-hover: 0 18px 40px rgba(124, 92, 255, 0.42);
+  --lightning-core: #ffffff;
+  --lightning-glow: rgba(34, 211, 238, 0.8);
+  --lightning-accent: #7c5cff;
+  --gold-glow: rgba(251, 191, 36, 0.45);
+  --gold-sheen: rgba(255, 255, 255, 0.35);
   --radius-lg: 26px;
   --radius-md: 16px;
   --radius-sm: 12px;
@@ -135,6 +151,11 @@
   --primary-gradient-hover: linear-gradient(120deg, #4c2fe0, #6d4aff 55%, #067a96);
   --primary-shadow: 0 14px 34px rgba(109, 74, 255, 0.28);
   --primary-shadow-hover: 0 18px 40px rgba(109, 74, 255, 0.36);
+  --lightning-core: #4c1d95;
+  --lightning-glow: rgba(8, 145, 178, 0.55);
+  --lightning-accent: #0891b2;
+  --gold-glow: rgba(217, 119, 6, 0.35);
+  --gold-sheen: rgba(255, 255, 255, 0.7);
   --shadow: 0 24px 70px rgba(30, 41, 89, 0.16);
 }
 
@@ -197,49 +218,6 @@ select:focus {
   outline: none;
   border-color: var(--focus-border);
   box-shadow: 0 0 0 4px var(--accent-soft);
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 10px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -10,6 +10,7 @@ import type {
 } from '../shared/events'
 import { translate } from '../shared/i18n'
 import { DEFAULT_LANGUAGE, isLanguageCode, type LanguageCode } from '../shared/languages'
+import { maskRoomStateForPlayer } from '../shared/visibility'
 import { isDictionaryWord, pickBotWord, warmDictionary } from './dictionary'
 import { RoomStore } from './roomStore'
 
@@ -83,7 +84,17 @@ const io = new Server<
 })
 
 const store = new RoomStore((code, state) => {
-  io.to(code).emit('state:update', state)
+  const members = io.sockets.adapter.rooms.get(code)
+  if (!members) {
+    return
+  }
+
+  for (const socketId of members) {
+    const target = io.sockets.sockets.get(socketId)
+    if (target) {
+      target.emit('state:update', maskRoomStateForPlayer(state, target.data.playerId))
+    }
+  }
 }, isDictionaryWord, pickBotWord)
 
 io.on('connection', (socket) => {

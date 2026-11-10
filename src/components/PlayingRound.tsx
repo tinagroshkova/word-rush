@@ -43,7 +43,7 @@ export const PlayingRound = ({
   }
 
   const locked = me?.submitted ?? false
-  const submissions = [...round.submissions].sort((a, b) => a.at - b.at)
+  const submissions = locked ? [...round.submissions].sort((a, b) => a.at - b.at) : []
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -147,7 +147,7 @@ export const PlayingRound = ({
         <div className={ui.feed}>
           <h3>{t('play.wordsInPlay')}</h3>
           {submissions.length === 0 ? (
-            <p className={ui.muted}>{t('play.noWords')}</p>
+            <p className={ui.muted}>{t(locked ? 'play.noWords' : 'play.hiddenWords')}</p>
           ) : (
             <ul className={ui.feedList}>
               {submissions.map((submission, index) => (

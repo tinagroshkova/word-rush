@@ -1,3 +1,5 @@
+@use '../styles/animations' as anim;
+
 .countdown {
   display: flex;
   align-items: center;
@@ -31,7 +33,7 @@
 
 .urgent .countdownValue {
   color: var(--danger);
-  animation: pulse 0.9s ease-in-out infinite;
+  @include anim.pulse(0.9s, ease-in-out, infinite);
 }
 
 .urgent .countdownFill {

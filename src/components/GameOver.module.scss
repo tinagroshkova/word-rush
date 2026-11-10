@@ -1,12 +1,63 @@
+@use '../styles/animations' as anim;
+
+.gameOver {
+  @include anim.victory-glow(3.2s, ease-in-out, infinite);
+}
+
 .gameOver .head {
   margin-bottom: 0;
 }
 
+.gameOver .confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.confettiPiece {
+  position: absolute;
+  top: -12%;
+  width: var(--confetti-size);
+  height: calc(var(--confetti-size) * 1.6);
+  background: var(--confetti-color);
+  border-radius: var(--confetti-radius);
+  opacity: 0;
+  @include anim.confetti-fall(3s, cubic-bezier(0.2, 0.6, 0.4, 1), 2, both);
+}
+
+.championRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.trophy {
+  flex: none;
+  width: 50px;
+  height: 50px;
+  padding: 6px;
+  color: var(--gold);
+  border: 2px solid var(--gold-glow);
+  border-radius: 50%;
+  @include anim.trophy-rise(0.8s, cubic-bezier(0.2, 0.7, 0.2, 1), both);
+}
+
 .champion {
-  margin-top: 6px;
+  margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: var(--accent-2);
+  background: linear-gradient(90deg, var(--gold), var(--accent-2), var(--gold));
+  background-size: 200% auto;
+  background-position: 0% center;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  @include anim.champion-shimmer(3s, linear, infinite);
 }
 
 .standings {
@@ -27,11 +78,25 @@
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-panel-soft);
+  @include anim.row-rise(0.55s, cubic-bezier(0.2, 0.7, 0.2, 1), both);
 }
 
 .row1 {
+  position: relative;
+  overflow: hidden;
   border-color: var(--gold-border);
   background: linear-gradient(90deg, var(--gold-soft), var(--surface-panel-soft));
+  box-shadow: 0 0 24px -6px var(--gold-glow);
+}
+
+.row1::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, var(--gold-sheen) 50%, transparent 70%);
+  transform: translateX(-140%) skewX(-18deg);
+  @include anim.sheen-sweep(3.6s, ease-in-out, 1s, infinite);
+  pointer-events: none;
 }
 
 .row2 {

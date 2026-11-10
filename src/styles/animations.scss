@@ -1,0 +1,213 @@
+@mixin card-border-spin($duration: 2.4s, $timing: linear, $iteration: infinite) {
+  animation: global(card-border-spin) $duration $timing $iteration;
+}
+
+@mixin confetti-fall(
+  $duration: 3s,
+  $timing: cubic-bezier(0.2, 0.6, 0.4, 1),
+  $iteration: 2,
+  $fill-mode: both
+) {
+  animation: global(confetti-fall) $duration $timing $iteration $fill-mode;
+}
+
+@mixin trophy-rise(
+  $duration: 0.8s,
+  $timing: cubic-bezier(0.2, 0.7, 0.2, 1),
+  $fill-mode: both
+) {
+  animation:
+    global(trophy-rise) $duration $timing $fill-mode,
+    global(trophy-glow) 2.4s ease-in-out 0.8s infinite;
+}
+
+@mixin shockwave($duration: 2.6s, $timing: ease-out, $iteration: infinite) {
+  // animation: global(shockwave) $duration $timing $iteration;
+}
+
+@mixin victory-glow($duration: 3.2s, $timing: ease-in-out, $iteration: infinite) {
+  animation: global(victory-glow) $duration $timing $iteration;
+}
+
+@mixin sheen-sweep(
+  $duration: 3.6s,
+  $timing: ease-in-out,
+  $delay: 1s,
+  $iteration: infinite
+) {
+  animation: global(sheen-sweep) $duration $timing $delay $iteration;
+}
+
+@mixin row-rise(
+  $duration: 0.55s,
+  $timing: cubic-bezier(0.2, 0.7, 0.2, 1),
+  $fill-mode: both
+) {
+  animation: global(row-rise) $duration $timing $fill-mode;
+}
+
+@mixin champion-shimmer(
+  $duration: 3s,
+  $timing: linear,
+  $iteration: infinite
+) {
+  animation: global(champion-shimmer) $duration $timing $iteration;
+}
+
+@mixin fade-in($duration: 0.5s, $timing: ease, $fill-mode: both) {
+  animation: global(fade-in) $duration $timing $fill-mode;
+}
+
+@mixin rise($duration: 0.25s, $timing: ease, $fill-mode: both) {
+  animation: global(rise) $duration $timing $fill-mode;
+}
+
+@mixin pulse($duration: 2s, $timing: ease-in-out, $iteration: infinite) {
+  animation: global(pulse) $duration $timing $iteration;
+}
+
+@mixin toast-in($duration: 0.25s, $timing: ease, $fill-mode: both) {
+  animation: global(toast-in) $duration $timing $fill-mode;
+}
+
+// Global keyframes used by the mixins above. The mixin-wrapping keeps them
+// co-located in this file while emitting CSS only once — include it from the
+// global entry `src/global.scss` (never from a CSS module, or they get duplicated).
+@mixin animations-keyframes {
+  @keyframes card-border-spin {
+    to {
+      --card-angle: 360deg;
+    }
+  }
+
+  @keyframes confetti-fall {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -18px, 0) rotate(0deg);
+    }
+    8% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--drift, 0px), 560px, 0) rotate(var(--spin, 540deg));
+    }
+  }
+
+  @keyframes trophy-rise {
+    0% {
+      opacity: 0;
+      transform: translateY(18px) scale(0.55) rotate(-10deg);
+    }
+    55% {
+      opacity: 1;
+      transform: translateY(-5px) scale(1.1) rotate(3deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1) rotate(0deg);
+    }
+  }
+
+  @keyframes trophy-glow {
+    0%,
+    100% {
+      filter: drop-shadow(0 0 8px var(--gold-glow));
+    }
+    50% {
+      filter: drop-shadow(0 0 20px var(--gold-glow));
+    }
+  }
+
+  @keyframes shockwave {
+    0% {
+      opacity: 0.7;
+      transform: scale(0.4);
+    }
+    80%,
+    100% {
+      opacity: 0;
+      transform: scale(1.8);
+    }
+  }
+
+  @keyframes victory-glow {
+    0%,
+    100% {
+      box-shadow: var(--shadow), 0 0 0 0 transparent;
+    }
+    50% {
+      box-shadow: var(--shadow), 0 0 38px 2px var(--gold-glow);
+    }
+  }
+
+  @keyframes sheen-sweep {
+    0% {
+      transform: translateX(-140%) skewX(-18deg);
+    }
+    55%,
+    100% {
+      transform: translateX(240%) skewX(-18deg);
+    }
+  }
+
+  @keyframes row-rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes champion-shimmer {
+    to {
+      background-position: 200% center;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 10px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+}

@@ -1,3 +1,5 @@
+@use './animations' as anim;
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.22em;
@@ -141,12 +143,66 @@
 }
 
 .card {
-  background: linear-gradient(160deg, var(--surface-strong), var(--surface));
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(160deg, var(--surface-panel-soft), var(--surface-strong));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: clamp(20px, 3vw, 28px);
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card>* {
+  position: relative;
+  z-index: 2;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--card-angle, 0deg),
+      transparent 0deg,
+      transparent 240deg,
+      var(--lightning-glow) 268deg,
+      var(--lightning-core) 286deg,
+      var(--lightning-accent) 306deg,
+      transparent 330deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.card:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow), 0 0 30px -8px var(--lightning-glow);
+}
+
+.card:focus-within::before {
+  opacity: 1;
+  @include anim.card-border-spin(2.4s, linear, infinite);
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-border);
+    box-shadow: var(--shadow), 0 0 30px -8px var(--lightning-glow);
+  }
+
+  .card:hover::before {
+    opacity: 1;
+    @include anim.card-border-spin(2.4s, linear, infinite);
+  }
 }
 
 .card h2 {
@@ -278,12 +334,10 @@
   font-weight: 800;
   letter-spacing: 0.18em;
   line-height: 1;
-  background: linear-gradient(
-    120deg,
-    var(--target-text-start),
-    var(--accent-2) 60%,
-    var(--accent)
-  );
+  background: linear-gradient(120deg,
+      var(--target-text-start),
+      var(--accent-2) 60%,
+      var(--accent));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -331,7 +385,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface-panel-soft);
   border: 1px solid var(--border);
-  animation: rise 0.25s ease both;
+  @include anim.rise(0.25s, ease, both);
 }
 
 .feedWinner {
@@ -360,6 +414,7 @@
 }
 
 @media (max-width: 900px) {
+
   .layout,
   .layoutGame {
     grid-template-columns: minmax(0, 1fr);

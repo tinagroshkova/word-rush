@@ -1,7 +1,9 @@
+@use '../styles/animations' as anim;
+
 .room {
   max-width: 1180px;
-  margin: 0 auto;
-  animation: fade-in 0.35s ease both;
+  margin: 20px auto;
+  @include anim.fade-in(0.35s, ease, both);
 }
 
 .roomHeader {

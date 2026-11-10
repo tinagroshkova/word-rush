@@ -1,17 +1,21 @@
-import { translate, type MessageKey, type MessageVars } from '../../shared/i18n'
-import type { LanguageCode } from '../../shared/languages'
-import type { Player } from '../../shared/types'
-import ui from '../styles/ui.module.scss'
-import styles from './PlayerList.module.scss'
+import {
+  translate,
+  type MessageKey,
+  type MessageVars,
+} from "../../shared/i18n";
+import type { LanguageCode } from "../../shared/languages";
+import type { Player } from "../../shared/types";
+import ui from "../styles/ui.module.scss";
+import styles from "./PlayerList.module.scss";
 
 interface PlayerListProps {
-  players: Player[]
-  playerId: string
-  language: LanguageCode
-  title: string
-  showScores?: boolean
-  showSubmitted?: boolean
-  onRemoveBot?: (botId: string) => void
+  players: Player[];
+  playerId: string;
+  language: LanguageCode;
+  title: string;
+  showScores?: boolean;
+  showSubmitted?: boolean;
+  onRemoveBot?: (botId: string) => void;
 }
 
 export const PlayerList = ({
@@ -23,7 +27,8 @@ export const PlayerList = ({
   showSubmitted = false,
   onRemoveBot,
 }: PlayerListProps) => {
-  const t = (key: MessageKey, vars?: MessageVars) => translate(language, key, vars)
+  const t = (key: MessageKey, vars?: MessageVars) =>
+    translate(language, key, vars);
 
   return (
     <section className={ui.card}>
@@ -37,29 +42,41 @@ export const PlayerList = ({
             key={player.id}
             className={[
               styles.item,
-              player.id === playerId ? styles.isYou : '',
-              player.connected ? '' : styles.isOffline,
+              player.id === playerId ? styles.isYou : "",
+              player.connected ? "" : styles.isOffline,
             ]
               .filter(Boolean)
-              .join(' ')}
+              .join(" ")}
           >
             <span className={styles.rank}>
               {showScores ? index + 1 : <span className={styles.dot} />}
             </span>
             <span className={styles.name}>
               {player.name}
-              {player.isHost && <span className={ui.tag}>{t('common.host')}</span>}
-              {player.isBot && <span className={`${ui.tag} ${ui.tagBot}`}>{t('common.bot')}</span>}
+              {player.isHost && (
+                <span className={ui.tag}>{t("common.host")}</span>
+              )}
+              {player.isBot && (
+                <span className={`${ui.tag} ${ui.tagBot}`}>
+                  {t("common.bot")}
+                </span>
+              )}
               {player.id === playerId && (
-                <span className={`${ui.tag} ${ui.tagYou}`}>{t('common.you')}</span>
+                <span className={`${ui.tag} ${ui.tagYou}`}>
+                  {t("common.you")}
+                </span>
               )}
               {!player.connected && (
-                <span className={`${ui.tag} ${ui.tagOffline}`}>{t('common.offline')}</span>
+                <span className={`${ui.tag} ${ui.tagOffline}`}>
+                  {t("common.offline")}
+                </span>
               )}
             </span>
             {showSubmitted && (
-              <span className={`${styles.check} ${player.submitted ? styles.isDone : ''}`}>
-                {player.submitted ? t('common.locked') : t('common.thinking')}
+              <span
+                className={`${styles.check} ${player.submitted ? styles.isDone : ""}`}
+              >
+                {player.submitted ? t("common.locked") : t("common.thinking")}
               </span>
             )}
             {showScores && <span className={styles.score}>{player.score}</span>}
@@ -67,15 +84,17 @@ export const PlayerList = ({
               <button
                 className={styles.remove}
                 onClick={() => onRemoveBot(player.id)}
-                title={t('common.remove', { name: player.name })}
-                aria-label={t('common.remove', { name: player.name })}
+                title={t("common.remove", { name: player.name })}
+                aria-label={t("common.remove", { name: player.name })}
               >
-                ×
+                <span className={styles.removeIcon} aria-hidden="true">
+                  ×
+                </span>
               </button>
             )}
           </li>
         ))}
       </ol>
     </section>
-  )
-}
+  );
+};

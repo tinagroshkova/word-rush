@@ -77,18 +77,24 @@
   justify-content: center;
   width: 26px;
   height: 26px;
-  padding: 0;
-  border-radius: 999px;
+  border-radius: 50%;
   border: 1px solid var(--border);
   background: transparent;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1;
+
   cursor: pointer;
   transition:
     color 0.15s ease,
     border-color 0.15s ease,
     background 0.15s ease;
+}
+
+.removeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .remove:hover {
