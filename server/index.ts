@@ -209,6 +209,10 @@ io.on('connection', (socket) => {
     }
   })
 
+  socket.on('chat:send', ({ text }, ack) => {
+    ack(socket.data.playerId ? store.sendChat(socket.data.playerId, text) : notInRoom())
+  })
+
   socket.on('disconnect', () => {
     if (socket.data.playerId) {
       store.handleDisconnect(socket.data.playerId, socket.id)

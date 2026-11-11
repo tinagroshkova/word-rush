@@ -62,6 +62,10 @@ export interface EmotePayload {
   emoji: string
 }
 
+export interface SendChatPayload {
+  text: string
+}
+
 export interface EmoteEvent {
   playerId: string
   playerName: string
@@ -92,4 +96,5 @@ export interface ClientToServerEvents {
   'word:submit': (payload: SubmitWordPayload, ack: (result: SubmitResult) => void) => void
   'powerup:use': (payload: UsePowerUpPayload, ack: (result: PowerUpResult) => void) => void
   'emote:send': (payload: EmotePayload) => void
+  'chat:send': (payload: SendChatPayload, ack: (result: ActionResult) => void) => void
 }

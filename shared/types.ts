@@ -46,6 +46,14 @@ export interface Player {
   personality?: BotPersonality
 }
 
+export interface ChatMessage {
+  id: string
+  playerId: string
+  playerName: string
+  text: string
+  at: number
+}
+
 export interface Submission {
   playerId: string
   playerName: string
@@ -79,6 +87,7 @@ export interface RoomState {
   maxRounds: number
   settings: RoomSettings
   daily: boolean
+  chat: ChatMessage[]
   serverTime: number
 }
 

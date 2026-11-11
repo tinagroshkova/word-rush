@@ -44,6 +44,51 @@
   font-weight: 600;
 }
 
+.recapItem {
+  position: relative;
+  cursor: help;
+}
+
+.recapItem:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.recapItem::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 20;
+  width: max-content;
+  max-width: min(260px, 78vw);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--toast-bg);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  pointer-events: none;
+}
+
+.recapItem:hover::after,
+.recapItem:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 .resultsGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);

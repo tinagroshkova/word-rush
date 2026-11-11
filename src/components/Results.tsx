@@ -67,12 +67,34 @@ export const Results = ({
   )
   const topWord = submissions[0] ?? null
   const bestStreak = all.reduce((max, entry) => Math.max(max, entry.streak), 0)
-  const recap: { label: string; word?: string; player?: string; value?: string }[] = [
-    { label: t('results.longest'), word: longest?.word, player: longest?.playerName },
-    { label: t('results.fastest'), word: fastest?.word, player: fastest?.playerName },
-    { label: t('results.topWord'), word: topWord?.word, player: topWord?.playerName },
+  const recap: {
+    label: string
+    tip: string
+    word?: string
+    player?: string
+    value?: string
+  }[] = [
+    {
+      label: t('results.longest'),
+      tip: t('results.longestTip'),
+      word: longest?.word,
+      player: longest?.playerName,
+    },
+    {
+      label: t('results.fastest'),
+      tip: t('results.fastestTip'),
+      word: fastest?.word,
+      player: fastest?.playerName,
+    },
+    {
+      label: t('results.topWord'),
+      tip: t('results.topWordTip'),
+      word: topWord?.word,
+      player: topWord?.playerName,
+    },
     {
       label: t('results.streak'),
+      tip: t('results.streakTip'),
       value: bestStreak > 0 ? String(bestStreak) : t('results.none'),
     },
   ]
@@ -102,7 +124,12 @@ export const Results = ({
           <h3>{t('results.recap')}</h3>
           <dl className={styles.recapGrid}>
             {recap.map((item) => (
-              <div key={item.label}>
+              <div
+                key={item.label}
+                className={styles.recapItem}
+                data-tooltip={item.tip}
+                tabIndex={0}
+              >
                 <dt>{item.label}</dt>
                 <dd>
                   {item.word ?? item.value}

@@ -1,10 +1,11 @@
-import type { PowerUpResult, SubmitResult } from '../../shared/events'
+import type { ActionResult, PowerUpResult, SubmitResult } from '../../shared/events'
 import { translate, type MessageKey } from '../../shared/i18n'
 import { LANGUAGES, type LanguageCode } from '../../shared/languages'
 import type { PowerUpType, RoomSettings, RoomState } from '../../shared/types'
 import ui from '../styles/ui.module.scss'
 import type { ConnectionStatus } from '../connection'
 import type { AchievementId, PlayerStats } from '../storage'
+import { ChatPanel } from './ChatPanel'
 import { GameOver } from './GameOver'
 import { Lobby } from './Lobby'
 import { PlayingRound } from './PlayingRound'
@@ -31,6 +32,7 @@ interface RoomProps {
   onUpdateSettings: (settings: Partial<RoomSettings>) => Promise<boolean>
   onUsePowerUp: (type: PowerUpType) => Promise<PowerUpResult>
   onEmote: (emoji: string) => void
+  onSendChat: (text: string) => Promise<ActionResult>
   onWordAccepted: (word: string, points: number, streak: number) => void
 }
 
@@ -54,6 +56,7 @@ export const Room = ({
   onUpdateSettings,
   onUsePowerUp,
   onEmote,
+  onSendChat,
   onWordAccepted,
 }: RoomProps) => {
   const isHost = room.hostId === playerId
@@ -102,56 +105,68 @@ export const Room = ({
         <div className={styles.banner}>{t('status.reconnecting')}</div>
       )}
 
-      {room.phase === 'lobby' && (
-        <Lobby
-          room={room}
-          language={language}
-          playerId={playerId}
-          isHost={isHost}
-          busy={busy}
-          onStart={onStart}
-          onAddBot={onAddBot}
-          onRemoveBot={onRemoveBot}
-          onUpdateSettings={onUpdateSettings}
-        />
-      )}
+      <div className={styles.roomBody}>
+        <div className={styles.stage}>
+          {room.phase === 'lobby' && (
+            <Lobby
+              room={room}
+              language={language}
+              playerId={playerId}
+              isHost={isHost}
+              busy={busy}
+              onStart={onStart}
+              onAddBot={onAddBot}
+              onRemoveBot={onRemoveBot}
+              onUpdateSettings={onUpdateSettings}
+            />
+          )}
 
-      {room.phase === 'playing' && (
-        <PlayingRound
+          {room.phase === 'playing' && (
+            <PlayingRound
+              room={room}
+              language={language}
+              playerId={playerId}
+              serverOffset={serverOffset}
+              onSubmit={onSubmit}
+              onUsePowerUp={onUsePowerUp}
+              onWordAccepted={onWordAccepted}
+            />
+          )}
+
+          {room.phase === 'reveal' && (
+            <Results
+              room={room}
+              language={language}
+              playerId={playerId}
+              isHost={isHost}
+              busy={busy}
+              onNext={onNext}
+            />
+          )}
+
+          {room.phase === 'finished' && (
+            <GameOver
+              room={room}
+              language={language}
+              playerId={playerId}
+              isHost={isHost}
+              busy={busy}
+              stats={stats}
+              earnedAchievements={earnedAchievements}
+              onRestart={onRestart}
+            />
+          )}
+        </div>
+
+        <ChatPanel
           room={room}
           language={language}
           playerId={playerId}
-          serverOffset={serverOffset}
-          onSubmit={onSubmit}
-          onUsePowerUp={onUsePowerUp}
+          disabled={status !== 'connected'}
+          onSendChat={onSendChat}
           onEmote={onEmote}
-          onWordAccepted={onWordAccepted}
         />
-      )}
-
-      {room.phase === 'reveal' && (
-        <Results
-          room={room}
-          language={language}
-          playerId={playerId}
-          isHost={isHost}
-          busy={busy}
-          onNext={onNext}
-        />
-      )}
-
-      {room.phase === 'finished' && (
-        <GameOver
-          room={room}
-          language={language}
-          playerId={playerId}
-          isHost={isHost}
-          busy={busy}
-          stats={stats}
-          earnedAchievements={earnedAchievements}
-          onRestart={onRestart}
-        />
-      )}
+      </div>
     </div>
   )
 }

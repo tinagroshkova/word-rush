@@ -492,4 +492,41 @@ describe('RoomStore', () => {
     expect(state().players.every((player) => player.powerUp === null)).toBe(true)
     expect(state().players.every((player) => !player.spectator)).toBe(true)
   })
+
+  it('broadcasts chat messages with collapsed whitespace', () => {
+    const { store, state } = createLobby()
+
+    expect(store.sendChat('p1', '  hello   room  ').ok).toBe(true)
+
+    const message = state().chat.at(-1)
+    expect(message?.playerId).toBe('p1')
+    expect(message?.playerName).toBe('Alice')
+    expect(message?.text).toBe('hello room')
+  })
+
+  it('filters blocked words from chat', () => {
+    const { store, state } = createLobby()
+
+    expect(store.sendChat('p1', 'fuck this').ok).toBe(true)
+    expect(state().chat.at(-1)?.text).toBe('**** this')
+  })
+
+  it('rate limits chat messages per player', () => {
+    const { store, state } = createLobby()
+
+    expect(store.sendChat('p1', 'first').ok).toBe(true)
+    expect(store.sendChat('p1', 'second').ok).toBe(false)
+    expect(state().chat).toHaveLength(1)
+
+    vi.advanceTimersByTime(1000)
+    expect(store.sendChat('p1', 'second').ok).toBe(true)
+    expect(state().chat).toHaveLength(2)
+  })
+
+  it('rejects empty chat messages', () => {
+    const { store, state } = createLobby()
+
+    expect(store.sendChat('p1', '   ').ok).toBe(false)
+    expect(state().chat).toHaveLength(0)
+  })
 })

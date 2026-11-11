@@ -353,6 +353,17 @@ export const App = () => {
     socket.emit('emote:send', { emoji })
   }, [])
 
+  const sendChat = useCallback(
+    async (text: string): Promise<ActionResult> => {
+      try {
+        return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('chat:send', { text })
+      } catch {
+        return { ok: false, error: t('error.unreachable') }
+      }
+    },
+    [t],
+  )
+
   const trackWord = useCallback((word: string, points: number, streak: number) => {
     const current = matchRef.current
     if (!current) {
@@ -565,6 +576,7 @@ export const App = () => {
           onUpdateSettings={updateSettings}
           onUsePowerUp={usePowerUpAction}
           onEmote={sendEmote}
+          onSendChat={sendChat}
           onWordAccepted={trackWord}
         />
       ) : (

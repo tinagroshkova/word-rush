@@ -16,13 +16,10 @@ interface PlayingRoundProps {
   serverOffset: number
   onSubmit: (word: string) => Promise<SubmitResult>
   onUsePowerUp: (type: PowerUpType) => Promise<PowerUpResult>
-  onEmote: (emoji: string) => void
   onWordAccepted: (word: string, points: number, streak: number) => void
 }
 
 type Feedback = { tone: 'ok' | 'bad'; text: string }
-
-const EMOTES = ['🔥', '😂', '👏', '😱', '💪', '🎯'] as const
 
 export const PlayingRound = ({
   room,
@@ -31,7 +28,6 @@ export const PlayingRound = ({
   serverOffset,
   onSubmit,
   onUsePowerUp,
-  onEmote,
   onWordAccepted,
 }: PlayingRoundProps) => {
   const round = room.round
@@ -236,23 +232,6 @@ export const PlayingRound = ({
                 </button>
               </div>
             )}
-
-            <div className={styles.emotes}>
-              <span className={ui.fieldLabel}>{t('play.emote')}</span>
-              <div className={styles.emoteRow}>
-                {EMOTES.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    className={styles.emoteButton}
-                    onClick={() => onEmote(emoji)}
-                    aria-label={emoji}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 

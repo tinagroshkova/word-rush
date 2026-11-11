@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   ActionResult,
   EmoteEvent,
@@ -20,6 +21,7 @@ import { translate } from '../shared/i18n'
 import { DEFAULT_LANGUAGE, type LanguageCode } from '../shared/languages'
 import type {
   BotPersonality,
+  ChatMessage,
   GamePhase,
   Player,
   PowerUpType,
@@ -40,6 +42,8 @@ interface Room {
   daily: boolean
   targetQueue: string[]
   usedWords: Set<string>
+  chat: ChatMessage[]
+  chatCooldowns: Map<string, number>
   roundTimer: NodeJS.Timeout | null
   emptyTimer: NodeJS.Timeout | null
   botSkills: Map<string, number>
@@ -66,6 +70,51 @@ const MAX_NAME_LENGTH = 16
 const BOT_FILL_COUNT = 3
 const EXTRA_TIME_MS = 5_000
 const HINT_AFTER_MISSES = 2
+const MAX_CHAT_LENGTH = 160
+const MAX_CHAT_HISTORY = 50
+const CHAT_COOLDOWN_MS = 700
+const BLOCKED_WORDS = [
+  'fuck',
+  'shit',
+  'bitch',
+  'cunt',
+  'asshole',
+  'bastard',
+  'dick',
+  'pussy',
+  'slut',
+  'whore',
+  'nigger',
+  'nigga',
+  'faggot',
+  'retard',
+  'еба',
+  'еби',
+  'ебаси',
+  'путка',
+  'кур',
+  'шиба',
+  'мамка',
+  'гъз',
+  'педераст',
+] as const
+
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const maskWord = (word: string): string => '*'.repeat(word.length)
+
+const filterChat = (text: string): string =>
+  BLOCKED_WORDS.reduce(
+    (result, word) =>
+      result.replace(new RegExp(escapeRegExp(word), 'gi'), (match) => maskWord(match)),
+    text,
+  )
+
+const sanitizeChat = (raw: string): string => {
+  const collapsed = raw.replace(/\s+/g, ' ').trim().slice(0, MAX_CHAT_LENGTH)
+  return collapsed.length > 0 ? filterChat(collapsed) : ''
+}
 const BOT_NAMES = [
   'Ada',
   'Byte',
@@ -156,6 +205,8 @@ export class RoomStore {
       daily,
       targetQueue: [],
       usedWords: new Set(),
+      chat: [],
+      chatCooldowns: new Map(),
       roundTimer: null,
       emptyTimer: null,
       botSkills: new Map(),
@@ -317,6 +368,44 @@ export class RoomStore {
     this.playerSockets.delete(botId)
     this.playerLanguages.delete(botId)
     this.clearBotTimer(room, botId)
+    this.sync(room.code)
+    return { ok: true }
+  }
+
+  sendChat = (playerId: string, rawText: string): ActionResult => {
+    const room = this.roomOf(playerId)
+    if (!room) {
+      return { ok: false, error: translate(this.languageOf(playerId), 'error.notInRoom') }
+    }
+
+    const player = room.players.get(playerId)
+    if (!player) {
+      return { ok: false, error: translate(room.language, 'error.notInThisRoom') }
+    }
+
+    const text = sanitizeChat(rawText)
+    if (!text) {
+      return { ok: false, error: translate(room.language, 'chat.emptyMessage') }
+    }
+
+    const now = Date.now()
+    const last = room.chatCooldowns.get(playerId) ?? 0
+    if (now - last < CHAT_COOLDOWN_MS) {
+      return { ok: false, error: translate(room.language, 'chat.rateLimited') }
+    }
+
+    room.chatCooldowns.set(playerId, now)
+    room.chat.push({
+      id: randomUUID(),
+      playerId,
+      playerName: player.name,
+      text,
+      at: now,
+    })
+    if (room.chat.length > MAX_CHAT_HISTORY) {
+      room.chat.splice(0, room.chat.length - MAX_CHAT_HISTORY)
+    }
+
     this.sync(room.code)
     return { ok: true }
   }
@@ -1042,6 +1131,7 @@ export class RoomStore {
     maxRounds: room.settings.maxRounds,
     settings: room.settings,
     daily: room.daily,
+    chat: [...room.chat],
     serverTime: Date.now(),
   })
 }

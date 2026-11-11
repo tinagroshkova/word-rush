@@ -55,6 +55,7 @@ const makeState = (overrides: Partial<RoomState> = {}): RoomState => ({
   maxRounds: 5,
   settings: DEFAULT_SETTINGS,
   daily: false,
+  chat: [],
   serverTime: 0,
   ...overrides,
 })
